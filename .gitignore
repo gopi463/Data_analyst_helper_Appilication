@@ -1,0 +1,82 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# C extensions
+*.so
+
+# Distribution / packaging
+bin/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nosenv/
+.gex/
+.jacoco/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+Active_State/
+
+# Streamlit config / cache
+.streamlit/config.toml
+.streamlit/secrets.toml
+
+# Environment Variables
+.env
+.env.local
+.env.*
+
+# Project Specific Directories (User Data / Persisted Files)
+uploads/
+data/
+reports/
+database/*.db
+database/*.db-journal
+database/*.db-wal
+
+# macOS
+.DS_Store

@@ -1,0 +1,342 @@
+/* ═══════════════════════════════════════════════════
+   style.css — AI Data Analyst Assistant
+   Dark Glassmorphism Professional UI
+   ═══════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ── Global Reset & Base ─────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    background-color: #0d1117 !important;
+    color: #e6edf3 !important;
+}
+
+/* ── Streamlit Container ─────────────────────────── */
+.stApp {
+    background: linear-gradient(135deg, #0d1117 0%, #0f1923 50%, #0d1117 100%) !important;
+    min-height: 100vh;
+}
+
+.main .block-container {
+    padding: 1.5rem 2rem !important;
+    max-width: 1400px !important;
+}
+
+/* ── Sidebar ─────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background: rgba(13, 17, 23, 0.95) !important;
+    border-right: 1px solid rgba(255,255,255,0.07) !important;
+    backdrop-filter: blur(20px);
+}
+
+[data-testid="stSidebar"] .block-container {
+    padding: 1.5rem 1rem !important;
+}
+
+/* ── Navigation Buttons ──────────────────────────── */
+div[data-testid="stSidebar"] .stButton > button {
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    color: #8892a4 !important;
+    text-align: left !important;
+    padding: 0.6rem 1rem !important;
+    border-radius: 8px !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    margin: 2px 0 !important;
+}
+
+div[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(102,126,234,0.15) !important;
+    color: #e6edf3 !important;
+    transform: translateX(4px) !important;
+}
+
+/* ── Primary Buttons ─────────────────────────────── */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    border: none !important;
+    color: white !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 0.6rem 1.4rem !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 15px rgba(102,126,234,0.35) !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(102,126,234,0.5) !important;
+}
+
+/* ── Secondary Buttons ───────────────────────────── */
+.stButton > button[kind="secondary"] {
+    background: rgba(22,27,34,0.8) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: #e6edf3 !important;
+    border-radius: 10px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+.stButton > button[kind="secondary"]:hover {
+    background: rgba(102,126,234,0.15) !important;
+    border-color: rgba(102,126,234,0.5) !important;
+}
+
+/* ── Input Fields ────────────────────────────────── */
+.stTextInput > div > div > input,
+.stTextArea textarea,
+.stSelectbox > div > div {
+    background: rgba(22,27,34,0.9) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 10px !important;
+    color: #e6edf3 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea textarea:focus {
+    border-color: rgba(102,126,234,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(102,126,234,0.15) !important;
+}
+
+/* ── Select Box ──────────────────────────────────── */
+.stSelectbox [data-baseweb="select"] > div {
+    background: rgba(22,27,34,0.9) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 10px !important;
+    color: #e6edf3 !important;
+}
+
+/* ── Tabs ────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    background: rgba(22,27,34,0.5) !important;
+    border-radius: 12px !important;
+    padding: 4px !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    gap: 4px !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    border-radius: 8px !important;
+    color: #8892a4 !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    padding: 8px 16px !important;
+    transition: all 0.2s ease !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    color: white !important;
+    box-shadow: 0 2px 10px rgba(102,126,234,0.4) !important;
+}
+
+/* ── Metrics ─────────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: rgba(22,27,34,0.7) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 12px !important;
+    padding: 1rem !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #667eea !important;
+    font-weight: 700 !important;
+    font-size: 1.6rem !important;
+}
+
+[data-testid="stMetricDelta"] {
+    font-size: 0.85rem !important;
+}
+
+/* ── DataFrames / Tables ─────────────────────────── */
+.stDataFrame {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+/* ── Expanders ───────────────────────────────────── */
+.streamlit-expanderHeader {
+    background: rgba(22,27,34,0.7) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 10px !important;
+    color: #e6edf3 !important;
+    font-weight: 600 !important;
+}
+
+.streamlit-expanderContent {
+    background: rgba(13,17,23,0.5) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+}
+
+/* ── Progress Bars ───────────────────────────────── */
+.stProgress > div > div {
+    background: linear-gradient(90deg, #667eea, #764ba2) !important;
+    border-radius: 100px !important;
+}
+
+.stProgress > div {
+    background: rgba(255,255,255,0.08) !important;
+    border-radius: 100px !important;
+}
+
+/* ── Spinners ────────────────────────────────────── */
+[data-testid="stSpinner"] {
+    color: #667eea !important;
+}
+
+/* ── File Uploader ───────────────────────────────── */
+[data-testid="stFileUploader"] {
+    background: rgba(22,27,34,0.7) !important;
+    border: 2px dashed rgba(102,126,234,0.4) !important;
+    border-radius: 14px !important;
+    padding: 1.5rem !important;
+    transition: border-color 0.2s ease !important;
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color: rgba(102,126,234,0.8) !important;
+}
+
+/* ── Chat Messages (WhatsApp Style) ──────────────── */
+div[data-testid="stChatMessageAvatar"] {
+    display: none !important;
+}
+
+div[data-testid="stChatMessage"] {
+    background-color: transparent !important;
+    border: none !important;
+    margin-bottom: 12px !important;
+    padding: 0 !important;
+    display: flex !important;
+    width: 100% !important;
+    animation: fadeInUp 0.3s ease !important;
+}
+
+div[data-testid="stChatMessageContent"] {
+    border-radius: 12px !important;
+    padding: 10px 16px !important;
+    max-width: 72% !important;
+    width: fit-content !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.95rem !important;
+    line-height: 1.5 !important;
+}
+
+div[data-testid="stChatMessage"][data-test-user="user"] {
+    justify-content: flex-end !important;
+}
+div[data-testid="stChatMessage"][data-test-user="user"] div[data-testid="stChatMessageContent"] {
+    background: linear-gradient(135deg, #005c4b, #00402e) !important;
+    color: #e9edef !important;
+    border-bottom-right-radius: 3px !important;
+}
+
+div[data-testid="stChatMessage"][data-test-user="assistant"] {
+    justify-content: flex-start !important;
+}
+div[data-testid="stChatMessage"][data-test-user="assistant"] div[data-testid="stChatMessageContent"] {
+    background: rgba(30,38,50,0.95) !important;
+    color: #e9edef !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-bottom-left-radius: 3px !important;
+}
+
+/* ── Alerts ──────────────────────────────────────── */
+.stAlert {
+    border-radius: 10px !important;
+}
+
+/* ── Sliders ─────────────────────────────────────── */
+[data-baseweb="slider"] [data-testid="stThumbValue"] {
+    background: #667eea !important;
+    color: white !important;
+}
+
+/* ── Checkbox & Radio ────────────────────────────── */
+.stCheckbox label, .stRadio label {
+    color: #c9d1d9 !important;
+}
+
+/* ── Dividers ────────────────────────────────────── */
+hr {
+    border: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    margin: 1.5rem 0 !important;
+}
+
+/* ── Scrollbar ───────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(102,126,234,0.5); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(102,126,234,0.8); }
+
+/* ── Animations ──────────────────────────────────── */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+}
+
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* ── Section Cards ───────────────────────────────── */
+.glass-card {
+    background: rgba(22, 27, 34, 0.7) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    margin-bottom: 1rem !important;
+    animation: fadeInUp 0.4s ease !important;
+}
+
+/* ── Code Blocks ─────────────────────────────────── */
+code, pre {
+    background: rgba(13,17,23,0.8) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 8px !important;
+    color: #79c0ff !important;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+/* ── Typography ──────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 { color: #e6edf3 !important; }
+p { color: #c9d1d9; }
+small, .small { color: #8892a4 !important; }
+
+/* ── Toast Notifications ─────────────────────────── */
+[data-testid="stToast"] {
+    background: rgba(22,27,34,0.95) !important;
+    border: 1px solid rgba(102,126,234,0.4) !important;
+    border-radius: 10px !important;
+    color: #e6edf3 !important;
+}
+
+/* ── Multiselect ─────────────────────────────────── */
+[data-baseweb="tag"] {
+    background: linear-gradient(135deg, rgba(102,126,234,0.3), rgba(118,75,162,0.3)) !important;
+    border: 1px solid rgba(102,126,234,0.4) !important;
+    color: #e6edf3 !important;
+    border-radius: 6px !important;
+}
