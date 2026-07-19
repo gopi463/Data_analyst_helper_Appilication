@@ -115,7 +115,7 @@ def detect_outliers(df: pd.DataFrame) -> pd.DataFrame:
             "Min": round(float(series.min()), 4),
             "Max": round(float(series.max()), 4),
         })
-    return pd.DataFrame(rows).sort_values("Outlier Count", ascending=False)
+    return pd.DataFrame(rows).sort_values("Outlier Count", ascending=False) if rows else pd.DataFrame()
 
 
 def get_data_quality_score(df: pd.DataFrame) -> Tuple[int, dict]:

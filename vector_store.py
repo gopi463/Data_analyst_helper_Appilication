@@ -76,6 +76,11 @@ class VectorStore:
     def total_vectors(self) -> int:
         return self.index.ntotal
 
+    def get_all_chunks(self) -> List[dict]:
+        """Return all stored chunk metadata (used by BM25 retriever)."""
+        return list(self.metadata)
+
+
     # ─── Persistence ──────────────────────
     def _get_paths(self) -> tuple[Path, Path]:
         """Return index and metadata file paths scoped to the user."""

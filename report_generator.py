@@ -163,10 +163,34 @@ def generate_pdf_report(
     if insights:
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#dee2e6")))
         story.append(Paragraph("💡 Business Insights", styles["SectionHeader"]))
-        ins_rows = [[i["icon"] + " " + i["title"], i["value"], i["subtitle"]] for i in insights[:10]]
+        
+        # Create wrap-supporting styles
+        ins_header_style = ParagraphStyle(
+            "InsHeader", parent=styles["Normal"],
+            fontSize=8, leading=10, fontName="Helvetica-Bold", textColor=colors.white
+        )
+        ins_cell_style = ParagraphStyle(
+            "InsCell", parent=styles["Normal"],
+            fontSize=8, leading=10, textColor=colors.HexColor("#333333")
+        )
+        
+        headers = [
+            Paragraph("Category", ins_header_style),
+            Paragraph("Value", ins_header_style),
+            Paragraph("Notes", ins_header_style),
+        ]
+        
+        ins_rows = []
+        for i in insights[:10]:
+            ins_rows.append([
+                Paragraph(i["icon"] + " " + i["title"], ins_cell_style),
+                Paragraph(str(i["value"]), ins_cell_style),
+                Paragraph(str(i["subtitle"]), ins_cell_style),
+            ])
+            
         ins_table = Table(
-            [["Category", "Value", "Notes"]] + ins_rows,
-            colWidths=[2.5 * inch, 2 * inch, 2 * inch],
+            [headers] + ins_rows,
+            colWidths=[2.2 * inch, 1.8 * inch, 2.5 * inch],
         )
         ins_table.setStyle(_header_table_style())
         story.append(ins_table)
@@ -174,13 +198,33 @@ def generate_pdf_report(
 
     # ── Data Preview ───────────────────────
     story.append(PageBreak())
-    story.append(Paragraph("📋 Dataset Preview (First 20 Rows)", styles["SectionHeader"]))
-    preview_df = df.head(20)
-    cols = preview_df.columns.tolist()
-    # Truncate long values
-    data_rows = [[str(v)[:25] for v in row] for _, row in preview_df.iterrows()]
-    col_width = min(1.5, 6.5 / len(cols)) * inch
-    data_table = Table([cols] + data_rows, colWidths=[col_width] * len(cols))
+    story.append(Paragraph("📋 Dataset Preview (First 8 columns, 20 rows)", styles["SectionHeader"]))
+    
+    # Cap columns to 8 for PDF layout readability
+    max_preview_cols = 8
+    preview_cols = df.columns[:max_preview_cols].tolist()
+    preview_df = df[preview_cols].head(20)
+    
+    # Text styles for table cells to support auto-wrapping
+    table_cell_style = ParagraphStyle(
+        "TableCell", parent=styles["Normal"],
+        fontSize=7, leading=9, textColor=colors.HexColor("#333333")
+    )
+    table_header_style = ParagraphStyle(
+        "TableHeader", parent=styles["Normal"],
+        fontSize=7.5, leading=10, fontName="Helvetica-Bold", textColor=colors.white
+    )
+    
+    # Wrap all headers and cells in Paragraph flowables
+    headers = [Paragraph(str(c), table_header_style) for c in preview_cols]
+    data_rows = []
+    for _, row in preview_df.iterrows():
+        data_rows.append([Paragraph(str(v)[:60], table_cell_style) for v in row])
+        
+    # Calculate column widths to fit print boundary (6.5 inches printing page width)
+    col_width = (6.5 / len(preview_cols)) * inch
+    
+    data_table = Table([headers] + data_rows, colWidths=[col_width] * len(preview_cols))
     data_table.setStyle(_header_table_style())
     story.append(data_table)
 

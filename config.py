@@ -98,6 +98,7 @@ PAGES = {
     "reports": "📋 Reports",
     "history": "🕐 Chat History",
     "settings": "⚙️ Settings",
+    "developer": "👨‍💻 Developer",
 }
 
 # ──────────────────────────────────────────

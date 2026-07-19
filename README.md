@@ -1,10 +1,12 @@
-# 🤖 AI Data Analyst Assistant
+# 🤖 AI Data Analyst Assistant v2.0
 
-> Enterprise-grade AI-powered data analytics platform built with Python + Streamlit
+> Enterprise-grade AI-powered data analytics platform with Hybrid RAG, Streaming, Conversation Memory, and Web Search Fallback
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-red)](https://streamlit.io)
-[![Groq](https://img.shields.io/badge/LLM-Groq-orange)](https://groq.com)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3-orange)](https://groq.com)
+[![FAISS](https://img.shields.io/badge/VectorDB-FAISS-green)](https://github.com/facebookresearch/faiss)
+[![BM25](https://img.shields.io/badge/Search-BM25%20%2B%20FAISS-purple)](https://github.com/dorianbrown/rank_bm25)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
@@ -15,14 +17,64 @@
 |---------|-------------|
 | 🔐 Authentication | Secure login/register with bcrypt password hashing |
 | 📂 File Upload | CSV, Excel (.xlsx/.xls), PDF — multi-file support |
-| 💬 AI Chat | RAG Q&A, SQL Mode, Pandas Mode |
+| 💬 AI Chat | Hybrid RAG Q&A, SQL Mode, Pandas Mode with **streaming responses** |
+| 🧠 Conversation Memory | Follow-up questions work naturally (last 4 exchanges remembered) |
+| 🔍 Hybrid Search | BM25 keyword search + FAISS semantic search fused with RRF |
+| 🎯 Reranking | Score-fusion reranker for improved answer quality |
+| 🌐 Web Search Fallback | Auto-fallback to DuckDuckGo when documents don't contain the answer |
 | 📊 Analytics | Full EDA, missing values, outlier detection, correlation |
 | 🧹 Data Cleaning | Remove duplicates, fill missing, change types, rename columns |
-| 📈 Charts | 10+ Plotly chart types with auto-suggestion |
+| 📈 Charts | 10+ Plotly chart types with AI auto-suggestion |
 | 💡 Insights | Auto KPIs, top performers, trend analysis, AI recommendations |
 | 📋 Reports | Professional PDF reports with executive summaries |
+| 👍 Feedback | Thumbs-up/thumbs-down buttons on every AI response |
 | 🕐 Chat History | Per-user conversation storage with search and delete |
 | ⚙️ Settings | Model, temperature, top-k, chunk size, embedding model |
+| 🧪 Tests | Unit tests for core modules (pytest) |
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Streamlit UI (app.py)                        │
+│  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌───────────────────┐  │
+│  │  Upload  │  │   Chat   │  │ Analytics  │  │ Insights/Reports  │  │
+│  └────┬─────┘  └────┬─────┘  └────────────┘  └───────────────────┘  │
+└───────│─────────────│────────────────────────────────────────────────┘
+        │             │
+        ▼             ▼
+┌───────────────┐   ┌─────────────────────────────────────────────────┐
+│  Document     │   │              Hybrid RAG Pipeline                 │
+│  Ingestion    │   │                                                   │
+│               │   │  ┌─────────────┐    ┌──────────────────────┐    │
+│  loader.py    │   │  │  BM25 Index  │    │   FAISS Vector Store  │   │
+│  chunker.py   │───┼─▶│ (rank-bm25) │    │ (SentenceTransformer) │   │
+│  embedder.py  │   │  └──────┬──────┘    └──────────┬───────────┘    │
+└───────────────┘   │         │                       │                │
+                    │         └──────────┬────────────┘                │
+                    │                    ▼                              │
+                    │         ┌──────────────────┐                     │
+                    │         │  RRF Fusion +    │                     │
+                    │         │  Score Reranker  │                     │
+                    │         └────────┬─────────┘                     │
+                    │                  │  low confidence?              │
+                    │                  ├──────────────▶ Web Search     │
+                    │                  │               (DuckDuckGo)    │
+                    │                  ▼                               │
+                    │    ┌─────────────────────────────┐              │
+                    │    │  Groq LLM (Llama-3.3-70B)   │              │
+                    │    │  + Conversation Memory       │ ◀─ Streaming │
+                    │    └─────────────────────────────┘              │
+                    └─────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────┐
+│                     Persistence Layer                              │
+│   SQLite (users, chat_history, feedback, files, settings)          │
+│   FAISS Index + BM25 metadata (per-user, on disk)                 │
+└───────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -59,6 +111,11 @@ cp .env.example .env
 streamlit run app.py
 ```
 
+### 6. Run Tests
+```bash
+python -m pytest tests/ -v --tb=short
+```
+
 ---
 
 ## 🌐 Deploy to Streamlit Cloud
@@ -74,20 +131,33 @@ streamlit run app.py
 
 ---
 
+## 🔧 Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `model` | `llama-3.3-70b-versatile` | Groq LLM model |
+| `temperature` | `0.1` | LLM creativity (0=precise, 1=creative) |
+| `top_k` | `5` | Number of chunks to retrieve per query |
+| `chunk_size` | `600` | Text chunk size (characters) |
+| `embedding_model` | `all-MiniLM-L6-v2` | SentenceTransformer model name |
+
+---
+
 ## 📁 Project Structure
 
 ```
 RAG_SYSTEM/
 ├── app.py                  # Main Streamlit entry point (routing + 8 pages)
 ├── config.py               # Global configuration & constants
-├── database.py             # SQLite ORM (users, history, files, reports)
+├── database.py             # SQLite ORM (users, history, feedback, files, reports)
 ├── auth.py                 # Authentication (login, register, bcrypt)
 ├── loader.py               # File loader (CSV, Excel, PDF)
-├── chunker.py              # Text chunker for RAG
-├── embedder.py             # SentenceTransformer embedding engine
-├── vector_store.py         # FAISS vector database
-├── retriever.py            # RAG retriever with citations
-├── llm.py                  # Groq LLM client (RAG, SQL, Pandas, Insights)
+├── chunker.py              # Smart text chunker with sentence-boundary awareness
+├── embedder.py             # SentenceTransformer embedding engine (cached)
+├── vector_store.py         # FAISS vector database (per-user isolation)
+├── retriever.py            # ★ Hybrid BM25+FAISS retriever + RRF + reranking
+├── web_search.py           # ★ DuckDuckGo web search fallback
+├── llm.py                  # ★ Groq LLM client (streaming + conversation memory)
 ├── analytics.py            # EDA, cleaning, outlier detection
 ├── charts.py               # Plotly chart builder (10+ types)
 ├── insights.py             # Business KPIs and insight cards
@@ -96,6 +166,12 @@ RAG_SYSTEM/
 ├── utils.py                # Helpers, SQL/Pandas execution, UI components
 ├── requirements.txt        # Python dependencies
 ├── .env.example            # Environment variable template
+├── tests/
+│   ├── test_chunker.py     # ★ Unit tests for chunker
+│   ├── test_retriever.py   # ★ Unit tests for hybrid retriever
+│   ├── test_llm.py         # ★ Unit tests for LLM helpers
+│   ├── test_analytics.py   # ★ Unit tests for analytics
+│   └── test_database.py    # ★ Unit tests for database
 ├── assets/
 │   └── style.css           # Dark glassmorphism CSS theme
 ├── uploads/                # Uploaded files storage
@@ -103,6 +179,7 @@ RAG_SYSTEM/
 ├── reports/                # Generated PDF reports (per user)
 └── database/               # SQLite database files
 ```
+> ★ = New or significantly upgraded in v2.0
 
 ---
 
@@ -113,13 +190,30 @@ RAG_SYSTEM/
 | Frontend | Streamlit |
 | AI / LLM | Groq API (`llama-3.3-70b-versatile`) |
 | Embeddings | `sentence-transformers` (all-MiniLM-L6-v2) |
-| Vector DB | FAISS |
+| Semantic Search | FAISS (Facebook AI Similarity Search) |
+| Keyword Search | BM25 (`rank-bm25`) |
+| Search Fusion | Reciprocal Rank Fusion (RRF) |
+| Web Fallback | DuckDuckGo Search (`duckduckgo-search`) |
 | Data Processing | Pandas, NumPy |
 | Visualization | Plotly |
 | Database | SQLite |
 | Authentication | bcrypt |
 | PDF Generation | ReportLab |
 | File Parsing | pypdf, openpyxl |
+| Testing | pytest |
+
+---
+
+## 📸 Pages Overview
+
+- **🏠 Home** — Dashboard with KPI cards, file history, quick actions
+- **📂 Upload Data** — Multi-file drag & drop with 5-step progress bar and BM25+FAISS indexing
+- **💬 Chat with AI** — Streaming RAG Q&A with conversation memory, web fallback, and 👍/👎 feedback
+- **📊 Analytics Dashboard** — Full EDA + data cleaning + custom chart builder
+- **💡 Business Insights** — KPIs, top performers, trend charts, AI recommendations
+- **📋 Reports** — PDF generation with executive summary, export CSV/Excel
+- **🕐 Chat History** — Search, browse, continue, delete conversation history
+- **⚙️ Settings** — Model, temperature, chunk size, embedding model, API key
 
 ---
 
@@ -133,16 +227,29 @@ RAG_SYSTEM/
 
 ---
 
-## 📸 Pages Overview
+## 🧪 Running Tests
 
-- **🏠 Home** — Dashboard with KPI cards, file history, quick actions
-- **📂 Upload Data** — Multi-file drag & drop with EDA preview and RAG indexing
-- **💬 Chat with AI** — RAG Q&A, SQL mode, Pandas code execution with citations
-- **📊 Analytics Dashboard** — Full EDA + data cleaning + custom chart builder
-- **💡 Business Insights** — KPIs, top performers, trend charts, AI recommendations
-- **📋 Reports** — PDF generation with executive summary, export CSV/Excel
-- **🕐 Chat History** — Search, browse, continue, delete conversation history
-- **⚙️ Settings** — Model, temperature, chunk size, embedding model, API key
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test file
+python -m pytest tests/test_chunker.py -v
+
+# Run with coverage report
+python -m pytest tests/ --cov=. --cov-report=term-missing
+```
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Run tests: `python -m pytest tests/`
+4. Commit: `git commit -m "Add my feature"`
+5. Push: `git push origin feature/my-feature`
+6. Open a Pull Request
 
 ---
 

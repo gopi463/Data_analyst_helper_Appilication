@@ -2,13 +2,14 @@
 llm.py — Groq LLM Client
 AI Data Analyst Assistant
 
-Provides: RAG Q&A, SQL generation, Pandas code generation, business insights.
+Provides: RAG Q&A (with streaming + conversation memory), SQL generation,
+Pandas code generation, business insights.
 """
 
 import os
 import re
 import json
-from typing import Optional, List
+from typing import Optional, List, Iterator
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -37,6 +38,7 @@ def get_groq_client(api_key: Optional[str] = None) -> Optional[Groq]:
 RAG_SYSTEM_PROMPT = """You are an expert AI Data Analyst Assistant.
 
 You have been provided with context extracted from the user's uploaded documents.
+You also have access to the conversation history — use it to handle follow-up questions naturally.
 
 Rules:
 1. Answer based on the provided context. You may synthesize, evaluate, and reason from it.
@@ -44,7 +46,20 @@ Rules:
 3. If comparing, structure the comparison clearly.
 4. If context is insufficient, say: "I couldn't find enough information in the uploaded documents to answer this."
 5. Never hallucinate facts not in the context.
-6. Be concise, professional, and insightful.
+6. Use the conversation history to resolve pronouns and follow-up references (e.g. "it", "that", "the second one").
+7. Be concise, professional, and insightful.
+"""
+
+WEB_RAG_SYSTEM_PROMPT = """You are an expert AI Data Analyst Assistant.
+
+The user's question could not be answered from the uploaded documents.
+You have been provided with real-time web search results as context instead.
+
+Rules:
+1. Answer based ONLY on the provided web search results.
+2. Cite your sources where possible.
+3. Be clear that this information comes from the web, not the user's uploaded documents.
+4. Be concise and factual.
 """
 
 SQL_SYSTEM_PROMPT = """You are an expert SQL analyst. The user has a dataset loaded into a SQLite database table called `data_table`.
@@ -83,7 +98,35 @@ Be specific. Include percentages and actual values from the data.
 
 
 # ──────────────────────────────────────────
-# Core LLM Call
+# Conversation History Formatter
+# ──────────────────────────────────────────
+def _build_message_history(
+    conversation_history: Optional[List[dict]],
+    max_exchanges: int = 4,
+) -> List[dict]:
+    """
+    Convert session chat_messages into Groq-compatible message dicts.
+    Takes only the last `max_exchanges` user+assistant pairs (= 2*max_exchanges messages).
+    Strips 'sources' and other non-standard fields.
+    """
+    if not conversation_history:
+        return []
+
+    # Filter to user/assistant only and take tail
+    valid = [
+        m for m in conversation_history
+        if m.get("role") in ("user", "assistant")
+    ]
+    tail = valid[-(max_exchanges * 2):]
+
+    return [
+        {"role": m["role"], "content": str(m.get("content", ""))[:2000]}
+        for m in tail
+    ]
+
+
+# ──────────────────────────────────────────
+# Core LLM Call (Non-Streaming)
 # ──────────────────────────────────────────
 def _call_llm(
     system_prompt: str,
@@ -92,20 +135,24 @@ def _call_llm(
     temperature: float = 0.1,
     max_tokens: int = 4096,
     api_key: Optional[str] = None,
+    conversation_history: Optional[List[dict]] = None,
 ) -> str:
     """Make a single LLM call and return the response text."""
     client = get_groq_client(api_key)
     if not client:
         return "⚠️ Error: Groq API key is not configured. Please add it in Settings or the sidebar."
 
+    history_msgs = _build_message_history(conversation_history)
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history_msgs)
+    messages.append({"role": "user", "content": user_message})
+
     response = client.chat.completions.create(
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
+        messages=messages,
     )
     answer = response.choices[0].message.content or ""
     # Strip any think tags from reasoning models
@@ -114,7 +161,48 @@ def _call_llm(
 
 
 # ──────────────────────────────────────────
-# RAG Q&A
+# Streaming LLM Call
+# ──────────────────────────────────────────
+def _call_llm_stream(
+    system_prompt: str,
+    user_message: str,
+    model: str = "llama-3.3-70b-versatile",
+    temperature: float = 0.1,
+    max_tokens: int = 4096,
+    api_key: Optional[str] = None,
+    conversation_history: Optional[List[dict]] = None,
+) -> Iterator[str]:
+    """
+    Stream an LLM response token-by-token.
+    Yields string chunks suitable for st.write_stream().
+    """
+    client = get_groq_client(api_key)
+    if not client:
+        yield "⚠️ Error: Groq API key is not configured. Please add it in Settings or the sidebar."
+        return
+
+    history_msgs = _build_message_history(conversation_history)
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history_msgs)
+    messages.append({"role": "user", "content": user_message})
+
+    stream = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        messages=messages,
+        stream=True,
+    )
+
+    for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta
+
+
+# ──────────────────────────────────────────
+# RAG Q&A (Non-Streaming)
 # ──────────────────────────────────────────
 def ask_llm(
     question: str,
@@ -122,6 +210,7 @@ def ask_llm(
     model: str = "llama-3.3-70b-versatile",
     temperature: float = 0.1,
     api_key: Optional[str] = None,
+    conversation_history: Optional[List[dict]] = None,
 ) -> str:
     """Answer a question using RAG context from retrieved chunks."""
     context = "\n\n---\n\n".join(c["text"] for c in retrieved_chunks)
@@ -132,7 +221,44 @@ def ask_llm(
 ---
 
 Question: {question}"""
-    return _call_llm(RAG_SYSTEM_PROMPT, user_message, model, temperature, api_key=api_key)
+    return _call_llm(
+        RAG_SYSTEM_PROMPT, user_message, model, temperature,
+        api_key=api_key, conversation_history=conversation_history,
+    )
+
+
+# ──────────────────────────────────────────
+# RAG Q&A (Streaming)
+# ──────────────────────────────────────────
+def ask_llm_stream(
+    question: str,
+    context: str,
+    model: str = "llama-3.3-70b-versatile",
+    temperature: float = 0.1,
+    api_key: Optional[str] = None,
+    conversation_history: Optional[List[dict]] = None,
+    use_web_context: bool = False,
+) -> Iterator[str]:
+    """
+    Stream a RAG answer token-by-token.
+
+    Args:
+        question            : User's query.
+        context             : Combined text context (from docs or web).
+        use_web_context     : If True, uses the web-search system prompt.
+    """
+    system = WEB_RAG_SYSTEM_PROMPT if use_web_context else RAG_SYSTEM_PROMPT
+    user_message = f"""Context:
+
+{context}
+
+---
+
+Question: {question}"""
+    yield from _call_llm_stream(
+        system, user_message, model, temperature,
+        api_key=api_key, conversation_history=conversation_history,
+    )
 
 
 # ──────────────────────────────────────────
@@ -242,9 +368,7 @@ def suggest_charts_with_ai(
     model: str = "llama-3.3-70b-versatile",
     api_key: Optional[str] = None,
 ) -> List[dict]:
-    """
-    Get AI-driven chart suggestions for the dataset.
-    """
+    """Get AI-driven chart suggestions for the dataset."""
     user_message = f"""DataFrame columns: {', '.join(columns)}
 Data types:
 {dtypes}
@@ -254,14 +378,13 @@ Sample data (first 5 rows):
 Please generate the 4 most business-insightful charts for this dataset."""
 
     response = _call_llm(CHART_SUGGESTION_SYSTEM_PROMPT, user_message, model, temperature=0.1, api_key=api_key)
-    
+
     # Strip any backticks or surrounding markers
     cleaned_json = re.sub(r"^```(?:json)?\s*|\s*```$", "", response.strip(), flags=re.MULTILINE).strip()
-    
+
     try:
         suggestions = json.loads(cleaned_json)
         if isinstance(suggestions, list):
-            # Validate each suggestion has key fields
             validated = []
             for s in suggestions:
                 if isinstance(s, dict) and "type" in s and "params" in s and "title" in s:
@@ -269,5 +392,5 @@ Please generate the 4 most business-insightful charts for this dataset."""
             return validated
     except Exception:
         pass
-    
+
     return []

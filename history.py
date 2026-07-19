@@ -10,7 +10,7 @@ import database as db
 
 def get_or_create_session_id() -> str:
     """Retrieve or generate a new session ID for the current chat session."""
-    if "session_id" not in st.session_state:
+    if st.session_state.get("session_id") is None:
         st.session_state["session_id"] = str(uuid.uuid4())
     return st.session_state["session_id"]
 

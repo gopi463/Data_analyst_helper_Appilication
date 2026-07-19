@@ -108,6 +108,31 @@ def init_db() -> None:
         )
     """)
 
+    # Message Feedback
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            session_id  TEXT    NOT NULL,
+            message_idx INTEGER NOT NULL,
+            rating      TEXT    NOT NULL CHECK(rating IN ('up', 'down')),
+            created_at  TEXT    DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+
+    # Recruiter Inquiries
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recruiter_inquiries (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT    NOT NULL,
+            company    TEXT,
+            email      TEXT    NOT NULL,
+            message    TEXT    NOT NULL,
+            created_at TEXT    DEFAULT (datetime('now'))
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -358,3 +383,68 @@ def get_user_stats(user_id: int) -> dict:
         "total_reports": total_reports,
         "total_sessions": total_sessions,
     }
+
+
+# ──────────────────────────────────────────
+# Feedback Operations
+# ──────────────────────────────────────────
+def save_feedback(user_id: int, session_id: str, message_idx: int, rating: str) -> None:
+    """Persist a user feedback rating ('up' or 'down') for a specific message."""
+    conn = get_connection()
+    # Upsert: replace any prior rating for the same message
+    conn.execute(
+        """
+        INSERT INTO feedback (user_id, session_id, message_idx, rating)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT DO NOTHING
+        """,
+        (user_id, session_id, message_idx, rating)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_feedback_stats(user_id: int) -> dict:
+    """Return aggregate thumbs-up / thumbs-down counts for a user."""
+    conn = get_connection()
+    up = conn.execute(
+        "SELECT COUNT(*) FROM feedback WHERE user_id = ? AND rating = 'up'", (user_id,)
+    ).fetchone()[0]
+    down = conn.execute(
+        "SELECT COUNT(*) FROM feedback WHERE user_id = ? AND rating = 'down'", (user_id,)
+    ).fetchone()[0]
+    conn.close()
+    return {"thumbs_up": up, "thumbs_down": down}
+
+
+# ──────────────────────────────────────────
+# Recruiter Inquiry Operations
+# ──────────────────────────────────────────
+def save_inquiry(name: str, company: str, email: str, message: str) -> None:
+    """Persist a contact form message from a recruiter."""
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO recruiter_inquiries (name, company, email, message) VALUES (?, ?, ?, ?)",
+        (name, company, email, message)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_inquiries() -> list[dict]:
+    """Retrieve all recruiter inquiries order by newest first."""
+    conn = get_connection()
+    cur = conn.execute("SELECT * FROM recruiter_inquiries ORDER BY created_at DESC")
+    rows = cur.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "company": r["company"],
+            "email": r["email"],
+            "message": r["message"],
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]

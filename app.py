@@ -6,6 +6,8 @@ Entry point routing all 8 pages with full authentication gate.
 """
 
 import streamlit as st
+
+
 import pandas as pd
 import numpy as np
 import os
@@ -26,7 +28,8 @@ from loader import load_multiple_files, get_file_size_str
 from chunker import chunk_documents
 from embedder import embed_chunks
 from vector_store import VectorStore, build_vector_store
-from retriever import retrieve_with_context, format_sources
+from retriever import retrieve_with_context, format_sources, BM25Retriever
+from web_search import web_search, format_web_results_as_context, format_web_sources
 from report_generator import generate_pdf_report, export_csv, export_excel
 from config import (
     APP_NAME, APP_ICON, PAGES, DEFAULT_TOP_K, DEFAULT_CHUNK_SIZE,
@@ -131,6 +134,7 @@ def render_sidebar():
             ("reports",  "📋", "Reports"),
             ("history",  "🕐", "Chat History"),
             ("settings", "⚙️", "Settings"),
+            ("developer", "👨‍💻", "Developer"),
         ]
 
         for page_id, icon, label in nav_items:
@@ -322,26 +326,43 @@ def page_upload():
 
         # Build RAG Index
         if all_docs:
-            with st.spinner("🧠 Building AI knowledge index..."):
-                progress = st.progress(0)
-                progress.progress(25, "Chunking documents…")
-                chunks = chunk_documents(
-                    all_docs,
-                    chunk_size=settings.get("chunk_size", DEFAULT_CHUNK_SIZE),
-                    overlap=DEFAULT_CHUNK_OVERLAP
-                )
-                progress.progress(60, "Generating embeddings…")
-                embeddings = embed_chunks(chunks, model_name=settings.get("embedding_model", DEFAULT_EMBEDDING_MODEL))
-                progress.progress(85, "Indexing vectors…")
-                vs = build_vector_store(chunks, embeddings, user_id=user_id)
-                vs.save()
-                progress.progress(100, "Done!")
+            progress = st.progress(0, text="🔄 Starting document indexing…")
+            status_box = st.empty()
 
-                st.session_state["vector_store"] = vs
-                st.session_state["chunks"] = chunks
-                st.session_state["file_names"] = [r["filename"] for r in loaded_results]
+            status_box.info("📄 Step 1/5 — Loading and parsing documents…")
+            progress.progress(10, text="Step 1/5: Parsing documents…")
 
-            st.success(f"🤖 RAG index built! {len(chunks)} chunks indexed from {len(uploaded_files)} file(s).")
+            status_box.info("✂️ Step 2/5 — Splitting into smart chunks…")
+            progress.progress(25, text="Step 2/5: Chunking text…")
+            chunks = chunk_documents(
+                all_docs,
+                chunk_size=settings.get("chunk_size", DEFAULT_CHUNK_SIZE),
+                overlap=DEFAULT_CHUNK_OVERLAP
+            )
+
+            status_box.info(f"🧠 Step 3/5 — Generating vector embeddings for {len(chunks)} chunks…")
+            progress.progress(50, text="Step 3/5: Embedding chunks…")
+            embeddings = embed_chunks(chunks, model_name=settings.get("embedding_model", DEFAULT_EMBEDDING_MODEL))
+
+            status_box.info("🗄️ Step 4/5 — Building FAISS vector index…")
+            progress.progress(75, text="Step 4/5: Indexing vectors…")
+            vs = build_vector_store(chunks, embeddings, user_id=user_id)
+            vs.save()
+
+            status_box.info("⚡ Step 5/5 — Building BM25 keyword index…")
+            progress.progress(90, text="Step 5/5: Building BM25 index…")
+            bm25 = BM25Retriever(chunks)
+            st.session_state["bm25_retriever"] = bm25
+
+            progress.progress(100, text="✅ Indexing complete!")
+            status_box.empty()
+
+            st.session_state["vector_store"] = vs
+            st.session_state["chunks"] = chunks
+            st.session_state["file_names"] = [r["filename"] for r in loaded_results]
+
+            st.success(f"🤖 Hybrid RAG index built! {len(chunks)} chunks indexed · BM25 + FAISS ready.")
+            st.toast("📚 Documents indexed successfully!", icon="✅")
 
         if combined_df is not None:
             st.session_state["current_df"] = combined_df
@@ -386,7 +407,7 @@ def page_chat():
     with k_col:
         top_k = st.slider("Top-K", 1, 10, settings.get("top_k", DEFAULT_TOP_K), key="top_k_slider")
 
-    # Show available columns when in SQL / Pandas mode (prevents hallucination)
+    # Show available columns when in SQL / Pandas mode
     if df is not None and ("SQL" in chat_mode or "Pandas" in chat_mode):
         with st.expander("📋 Available Columns (use these exact names in your question)", expanded=False):
             col_df = pd.DataFrame({
@@ -409,16 +430,44 @@ def page_chat():
 
     st.markdown("---")
 
-    # Display chat messages
+    # ── Display existing chat messages with feedback buttons ──────────────────
     messages = hist.get_current_messages()
-    for msg in messages:
+    session_id = hist.get_or_create_session_id()
+
+    for msg_idx, msg in enumerate(messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("sources"):
                 st.markdown(format_sources(msg["sources"]))
 
-    # Chat input
-    prompt = st.chat_input("Ask anything about your data…", key="chat_input")
+        # Feedback buttons only on assistant messages
+        if msg["role"] == "assistant":
+            fb_key_up   = f"fb_up_{session_id}_{msg_idx}"
+            fb_key_down = f"fb_down_{session_id}_{msg_idx}"
+            fb_state_key = f"fb_state_{session_id}_{msg_idx}"
+
+            # Show feedback row only if not already rated
+            if not st.session_state.get(fb_state_key):
+                fb_c1, fb_c2, fb_c3 = st.columns([1, 1, 8])
+                with fb_c1:
+                    if st.button("👍", key=fb_key_up, help="Helpful answer"):
+                        db.save_feedback(user_id, session_id, msg_idx, "up")
+                        st.session_state[fb_state_key] = "up"
+                        st.toast("Thanks for your feedback! 👍", icon="✅")
+                        st.rerun()
+                with fb_c2:
+                    if st.button("👎", key=fb_key_down, help="Not helpful"):
+                        db.save_feedback(user_id, session_id, msg_idx, "down")
+                        st.session_state[fb_state_key] = "down"
+                        st.toast("Thanks! We'll work to improve. 👎", icon="📝")
+                        st.rerun()
+            else:
+                rating = st.session_state[fb_state_key]
+                icon = "👍" if rating == "up" else "👎"
+                st.caption(f"{icon} Feedback recorded")
+
+    # ── Chat input ────────────────────────────────────────────────────────────
+    prompt = st.chat_input("Ask anything about your data… (follow-up questions work too!)", key="chat_input")
     if not prompt:
         return
 
@@ -427,49 +476,81 @@ def page_chat():
         st.markdown(prompt)
     hist.save_message(user_id, "user", prompt)
 
-    model = settings.get("model", DEFAULT_MODEL)
+    model       = settings.get("model", DEFAULT_MODEL)
     temperature = settings.get("temperature", DEFAULT_TEMPERATURE)
     eff_api_key = st.session_state.get("groq_api_key") or api_key
 
+    # Build conversation history for memory (last 8 messages = 4 exchanges)
+    conversation_history = hist.get_current_messages()[-8:]
+
     with st.chat_message("assistant"):
-        with st.spinner("Thinking…"):
 
-            # ── RAG Mode ──────────────────────────────────────────────────────
-            if "RAG" in chat_mode:
-                if vs is None:
-                    answer = "⚠️ No RAG index found. Please upload and index documents first."
-                    sources = []
-                else:
-                    context, sources = retrieve_with_context(prompt, vs, k=top_k)
-                    if not context:
-                        answer = "I couldn't find relevant information in the uploaded documents."
-                        sources = []
-                    else:
-                        answer = llm_module.ask_llm(
-                            prompt,
-                            [{"text": context}],
-                            model=model,
-                            temperature=temperature,
-                            api_key=eff_api_key,
-                        )
-
-            # ── SQL Mode ──────────────────────────────────────────────────────
-            elif "SQL" in chat_mode:
+        # ── RAG Mode (with Hybrid Search + Streaming + Web Fallback) ──────────
+        if "RAG" in chat_mode:
+            if vs is None:
+                answer = "⚠️ No RAG index found. Please upload and index documents first."
                 sources = []
-                if df is None:
-                    answer = "⚠️ No tabular data loaded. Please upload a CSV or Excel file first."
+                st.markdown(answer)
+            else:
+                bm25 = st.session_state.get("bm25_retriever")
+
+                # Rebuild BM25 index if missing (e.g. after app restart)
+                if bm25 is None and vs.get_all_chunks():
+                    bm25 = BM25Retriever(vs.get_all_chunks())
+                    st.session_state["bm25_retriever"] = bm25
+
+                context, sources, is_confident = retrieve_with_context(
+                    prompt, vs, k=top_k, bm25_retriever=bm25
+                )
+
+                use_web = False
+                if not context or not is_confident:
+                    # Fall back to web search
+                    web_results = web_search(prompt, max_results=5)
+                    if web_results:
+                        use_web = True
+                        context = format_web_results_as_context(web_results)
+                        sources = []  # web sources shown separately
+                        st.info("📄 No relevant content found in your documents. Using web search instead…")
+
+                if not context:
+                    answer = "I couldn't find relevant information in the uploaded documents or via web search. Please try rephrasing your question."
+                    sources = []
+                    st.markdown(answer)
                 else:
+                    # ── Stream the answer ──────────────────────────────────
+                    stream_gen = llm_module.ask_llm_stream(
+                        question=prompt,
+                        context=context,
+                        model=model,
+                        temperature=temperature,
+                        api_key=eff_api_key,
+                        conversation_history=conversation_history,
+                        use_web_context=use_web,
+                    )
+                    answer = st.write_stream(stream_gen)
+
+                    # Show sources
+                    if use_web:
+                        st.markdown(format_web_sources(web_results))
+                    elif sources:
+                        st.markdown(format_sources(sources))
+
+        # ── SQL Mode ──────────────────────────────────────────────────────────
+        elif "SQL" in chat_mode:
+            sources = []
+            if df is None:
+                answer = "⚠️ No tabular data loaded. Please upload a CSV or Excel file first."
+                st.markdown(answer)
+            else:
+                with st.spinner("Generating SQL…"):
                     cols = df.columns.tolist()
-                    # Rebuild SQLite DB if session lost (e.g. app restart)
                     if not st.session_state.get("current_sql_db"):
                         sql_db_path = utils.load_df_to_sqlite(df, user_id)
                         st.session_state["current_sql_db"] = sql_db_path
 
-                    # Pass exact column names + dtypes + sample so LLM never guesses
-                    dtype_lines = "\n".join(
-                        f"  - {c} ({str(df[c].dtype)})" for c in cols
-                    )
-                    sample = df.head(5).to_string(index=False)
+                    dtype_lines = "\n".join(f"  - {c} ({str(df[c].dtype)})" for c in cols)
+                    sample      = df.head(5).to_string(index=False)
                     schema_hint = (
                         f"Table: data_table\n"
                         f"Exact column names (use these EXACTLY, do not rename):\n{dtype_lines}\n\n"
@@ -486,7 +567,7 @@ def page_chat():
                             st.session_state["current_sql_db"], sql_code
                         )
                         if err:
-                            # Auto-retry: send the error + exact columns back to LLM
+                            # Auto-retry
                             retry_prompt = (
                                 f"The previous query failed with: {err}\n\n"
                                 f"The exact available columns are: {cols}\n"
@@ -506,6 +587,7 @@ def page_chat():
                                         f"⚠️ Execution error: {err2}\n\n"
                                         f"**Available columns:** `{'`, `'.join(cols)}`"
                                     )
+                                    st.markdown(answer)
                                 else:
                                     answer = f"**SQL Response (auto-corrected):**\n\n{retry_response}"
                                     st.markdown(answer)
@@ -520,6 +602,7 @@ def page_chat():
                                     f"⚠️ Execution error: {err}\n\n"
                                     f"**Available columns:** `{'`, `'.join(cols)}`"
                                 )
+                                st.markdown(answer)
                         else:
                             answer = f"**SQL Response:**\n\n{llm_response}"
                             st.markdown(answer)
@@ -533,14 +616,17 @@ def page_chat():
                             f"{llm_response}\n\n"
                             f"**Available columns:** `{'`, `'.join(cols)}`"
                         )
+                        st.markdown(answer)
 
-            # ── Pandas Mode ───────────────────────────────────────────────────
-            elif "Pandas" in chat_mode:
-                sources = []
-                if df is None:
-                    answer = "⚠️ No tabular data loaded. Please upload a CSV or Excel file first."
-                else:
-                    cols = df.columns.tolist()
+        # ── Pandas Mode ───────────────────────────────────────────────────────
+        elif "Pandas" in chat_mode:
+            sources = []
+            if df is None:
+                answer = "⚠️ No tabular data loaded. Please upload a CSV or Excel file first."
+                st.markdown(answer)
+            else:
+                with st.spinner("Generating pandas code…"):
+                    cols   = df.columns.tolist()
                     dtypes = df.dtypes.to_string()
                     sample = df.head(5).to_string(index=False)
                     llm_response = llm_module.generate_pandas_code(
@@ -565,10 +651,7 @@ def page_chat():
                         return
                     else:
                         answer = llm_response
-
-        st.markdown(answer)
-        if sources:
-            st.markdown(format_sources(sources))
+                        st.markdown(answer)
 
     hist.save_message(user_id, "assistant", answer, sources if "sources" in locals() else [])
 
@@ -1145,6 +1228,88 @@ def page_settings():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# ██████████████████████ PAGE: DEVELOPER ███████████████████████████████████████
+# ──────────────────────────────────────────────────────────────────────────────
+def page_developer():
+    utils.section_header("👨‍💻 Developer Profile", "Learn more about the creator of AI Data Analyst Assistant")
+
+    col_profile, col_form = st.columns([1, 1])
+
+    with col_profile:
+        # Glassmorphic Profile Card
+        st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
+            border-radius:15px;padding:24px;text-align:center;box-shadow:0 8px 32px 0 rgba(0,0,0,0.37);">
+            <div style="font-size:5rem;margin-bottom:12px;">👨‍💻</div>
+            <h2 style="margin:0;color:#e6edf3;font-size:1.8rem;">Gopi Chand Pasam</h2>
+            <p style="color:#667eea;font-weight:600;margin:4px 0 16px 0;font-size:1.1rem;">Full Stack AI & RAG Engineer</p>
+            <hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0;">
+            <div style="text-align:left;color:#e6edf3;font-size:0.9rem;">
+                <p>🚀 <strong>Specialization:</strong> Building highly optimized Retrieval-Augmented Generation (RAG) pipelines, analytical assistants, and secure enterprise web apps.</p>
+                <p>🛠️ <strong>Core Stack:</strong> Python · Streamlit · Groq API · FAISS · BM25 · SQLite · Pytest · pandas · Plotly</p>
+                <p>📬 <strong>Email:</strong> <a href="mailto:gopipasam93@gmail.com" style="color:#667eea;text-decoration:none;">gopipasam93@gmail.com</a></p>
+            </div>
+            <div style="display:flex;justify-content:center;gap:15px;margin-top:20px;">
+                <a href="https://github.com/gopi463" target="_blank" style="text-decoration:none;
+                    background:#24292e;color:white;padding:8px 16px;border-radius:8px;font-weight:600;font-size:0.85rem;">
+                    🐙 GitHub Profile
+                </a>
+                <a href="https://linkedin.com" target="_blank" style="text-decoration:none;
+                    background:#0a66c2;color:white;padding:8px 16px;border-radius:8px;font-weight:600;font-size:0.85rem;">
+                    💼 LinkedIn Profile
+                </a>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("")
+        st.markdown("### 🌟 About the Project")
+        st.markdown(
+            "This project is a next-generation **AI Data Analyst Assistant** designed to bridge the gap between "
+            "raw spreadsheets and enterprise-level business intelligence. By combining vector similarity embeddings (FAISS) "
+            "with exact lexical keywords retrieval (BM25Okapi) and reciprocal rank fusion (RRF) reranking, "
+            "it delivers extreme precision for document Q&A alongside automated SQL/Pandas code generation."
+        )
+
+    with col_form:
+        st.markdown("### ✉️ Get in Touch / Hire Me")
+        st.markdown("Are you a recruiter or looking for a freelancer? Send an inquiry directly through this app form!")
+
+        with st.form("recruiter_form"):
+            name = st.text_input("Name *", placeholder="Enter your name")
+            company = st.text_input("Company", placeholder="Enter your company")
+            email = st.text_input("Email *", placeholder="Enter your contact email")
+            message = st.text_area("Message *", placeholder="Briefly describe the role, project, or why you are reaching out...")
+            
+            submitted = st.form_submit_button("🚀 Send Message", type="primary", use_container_width=True)
+            if submitted:
+                if not name or not email or not message:
+                    st.error("⚠️ Please fill in all required fields (*) before sending.")
+                else:
+                    db.save_inquiry(name, company, email, message)
+                    st.success("✅ Inquiry sent successfully! The developer has been notified.")
+                    st.toast("Message sent!", icon="✉️")
+
+        # Inquiries Panel (visible in the app for review/demo)
+        inquiries = db.get_inquiries()
+        if inquiries:
+            with st.expander(f"📥 Incoming Inquiries Dashboard ({len(inquiries)})", expanded=False):
+                st.info("💡 As a developer, all recruiter messages sent through the contact form are stored in the SQLite DB and listed here for easy follow-up.")
+                for inq in inquiries:
+                    st.markdown(f"""
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+                        border-radius:10px;padding:12px;margin-bottom:10px;">
+                        <div style="display:flex;justify-content:between;font-size:0.75rem;color:#8892a4;margin-bottom:4px;">
+                            <strong>From: {inq['name']} ({inq['company'] or 'Independent'})</strong>
+                            <span style="margin-left:auto;">{inq['created_at'][:16]}</span>
+                        </div>
+                        <div style="font-size:0.8rem;color:#c8d4ff;margin-bottom:4px;">📧 {inq['email']}</div>
+                        <div style="font-size:0.85rem;color:#e6edf3;white-space:pre-wrap;">{inq['message']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Router
 # ──────────────────────────────────────────────────────────────────────────────
 PAGE_ROUTER = {
@@ -1156,6 +1321,7 @@ PAGE_ROUTER = {
     "reports":   page_reports,
     "history":   page_history,
     "settings":  page_settings,
+    "developer": page_developer,
 }
 
 page_fn = PAGE_ROUTER.get(current_page, page_home)
