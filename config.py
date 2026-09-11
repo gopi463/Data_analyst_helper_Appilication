@@ -50,15 +50,51 @@ def get_groq_api_key() -> str:
 # ──────────────────────────────────────────
 # LLM Defaults
 # ──────────────────────────────────────────
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+# Live model list — updated Sept 2026.
+# llama3-70b-8192, llama-3.1-70b-versatile, gemma2-9b-it, mixtral-8x7b-32768
+# are ALL decommissioned. Use get_available_groq_models() at runtime for latest.
+DEFAULT_MODEL = "llama-3.3-70b-versatile"   # current primary production model
+FALLBACK_MODELS = [
+    "llama-3.3-70b-versatile",   # primary — 70B, best quality
+    "llama-3.1-8b-instant",      # fast & cheap fallback
+    "openai/gpt-oss-20b",        # OpenAI-compatible fallback
+    "openai/gpt-oss-120b",       # large OpenAI-compatible fallback
+]
 AVAILABLE_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
 ]
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_MAX_TOKENS = 4096
+
+
+def get_available_groq_models(api_key: str = "") -> list:
+    """
+    Fetch the live list of text-generation models from Groq API.
+    Falls back to AVAILABLE_MODELS if the API call fails (network issue,
+    invalid key, etc.).
+    Only returns chat/text models — filters out audio/whisper/speech models.
+    """
+    key = api_key or get_groq_api_key()
+    if not key:
+        return AVAILABLE_MODELS
+    try:
+        from groq import Groq
+        client = Groq(api_key=key)
+        response = client.models.list()
+        # Filter to text-generation chat models only
+        skip_keywords = ["whisper", "tts", "distil", "guard", "vision", "playai", "speech"]
+        models = [
+            m.id for m in response.data
+            if not any(kw in m.id.lower() for kw in skip_keywords)
+        ]
+        if models:
+            return sorted(models)
+    except Exception:
+        pass
+    return AVAILABLE_MODELS
 
 # ──────────────────────────────────────────
 # RAG / Embedding Defaults
@@ -69,8 +105,8 @@ AVAILABLE_EMBEDDING_MODELS = [
     "all-mpnet-base-v2",
     "paraphrase-MiniLM-L6-v2",
 ]
-DEFAULT_CHUNK_SIZE = 600
-DEFAULT_CHUNK_OVERLAP = 100
+DEFAULT_CHUNK_SIZE = 1000      # Larger chunks = fewer total chunks = faster embedding
+DEFAULT_CHUNK_OVERLAP = 150   # Slightly bigger overlap keeps context quality
 DEFAULT_TOP_K = 5
 
 # ──────────────────────────────────────────

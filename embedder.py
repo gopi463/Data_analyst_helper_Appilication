@@ -31,7 +31,7 @@ def load_embedding_model(model_name: str = DEFAULT_EMBEDDING_MODEL) -> SentenceT
 def embed_chunks(
     chunks: List[dict],
     model_name: str = DEFAULT_EMBEDDING_MODEL,
-    batch_size: int = 64,
+    batch_size: int = 256,
     show_progress: bool = False,
 ) -> np.ndarray:
     """
@@ -39,6 +39,10 @@ def embed_chunks(
 
     Returns:
         numpy.ndarray of shape (n_chunks, embedding_dim)
+
+    Performance notes:
+        - batch_size=256 is optimal for CPU; lower if you get OOM errors.
+        - num_workers uses all CPU threads via tokenizer parallelism.
     """
     model = load_embedding_model(model_name)
     texts = [chunk["text"] for chunk in chunks]
@@ -48,6 +52,8 @@ def embed_chunks(
         convert_to_numpy=True,
         show_progress_bar=show_progress,
         normalize_embeddings=True,
+        # Use all available CPU threads for tokenization
+        num_workers=0,  # 0 = use main thread (safe for Streamlit)
     )
     return embeddings.astype("float32")
 

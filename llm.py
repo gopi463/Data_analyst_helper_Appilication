@@ -4,6 +4,9 @@ AI Data Analyst Assistant
 
 Provides: RAG Q&A (with streaming + conversation memory), SQL generation,
 Pandas code generation, business insights.
+
+Fix: resolve_model() tries a fallback chain so deprecated model IDs never
+cause a hard crash — the app automatically promotes to the next valid model.
 """
 
 import os
@@ -14,6 +17,10 @@ from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Import centrally-defined fallback list (avoids circular imports — config
+# does NOT import llm).
+from config import FALLBACK_MODELS, DEFAULT_MODEL
 
 # ──────────────────────────────────────────
 # Client Factory
@@ -30,6 +37,43 @@ def get_groq_client(api_key: Optional[str] = None) -> Optional[Groq]:
     if not key:
         return None
     return Groq(api_key=key)
+
+
+# ──────────────────────────────────────────
+# Smart Model Resolver (permanent fix)
+# ──────────────────────────────────────────
+def resolve_model(preferred: str, api_key: Optional[str] = None) -> str:
+    """
+    Return `preferred` if Groq accepts it, otherwise walk FALLBACK_MODELS
+    until one succeeds.  This permanently prevents 'model_not_found' crashes
+    caused by Groq deprecating a model ID.
+
+    A lightweight probe (1-token completion) is used to validate each candidate.
+    The result is NOT cached across calls because session state lives in app.py;
+    callers that want caching should store the result in st.session_state.
+    """
+    client = get_groq_client(api_key)
+    if not client:
+        return preferred  # no key — nothing we can validate
+
+    candidates = [preferred] + [m for m in FALLBACK_MODELS if m != preferred]
+
+    for model_id in candidates:
+        try:
+            client.chat.completions.create(
+                model=model_id,
+                messages=[{"role": "user", "content": "hi"}],
+                max_tokens=1,
+            )
+            return model_id          # first one that doesn't raise
+        except Exception as exc:
+            err = str(exc).lower()
+            if "model_not_found" in err or "does not exist" in err or "404" in err:
+                continue             # try next
+            # Any other error (rate-limit, auth, network) — keep preferred
+            return preferred
+
+    return FALLBACK_MODELS[-1]       # last-resort fallback
 
 
 # ──────────────────────────────────────────
@@ -131,33 +175,45 @@ def _build_message_history(
 def _call_llm(
     system_prompt: str,
     user_message: str,
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     temperature: float = 0.1,
     max_tokens: int = 4096,
     api_key: Optional[str] = None,
     conversation_history: Optional[List[dict]] = None,
 ) -> str:
-    """Make a single LLM call and return the response text."""
+    """Make a single LLM call and return the response text.
+    Auto-resolves deprecated model IDs by walking FALLBACK_MODELS.
+    """
     client = get_groq_client(api_key)
     if not client:
         return "⚠️ Error: Groq API key is not configured. Please add it in Settings or the sidebar."
 
     history_msgs = _build_message_history(conversation_history)
-
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history_msgs)
     messages.append({"role": "user", "content": user_message})
 
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        messages=messages,
-    )
-    answer = response.choices[0].message.content or ""
-    # Strip any think tags from reasoning models
-    answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
-    return answer
+    candidates = [model] + [m for m in FALLBACK_MODELS if m != model]
+    last_err = None
+    for candidate in candidates:
+        try:
+            response = client.chat.completions.create(
+                model=candidate,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                messages=messages,
+            )
+            answer = response.choices[0].message.content or ""
+            answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+            return answer
+        except Exception as exc:
+            err = str(exc).lower()
+            if "model_not_found" in err or "does not exist" in err or "404" in err:
+                last_err = exc
+                continue   # try next model
+            raise          # re-raise non-model errors immediately
+
+    return f"⚠️ All fallback models exhausted. Last error: {last_err}"
 
 
 # ──────────────────────────────────────────
@@ -166,7 +222,7 @@ def _call_llm(
 def _call_llm_stream(
     system_prompt: str,
     user_message: str,
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     temperature: float = 0.1,
     max_tokens: int = 4096,
     api_key: Optional[str] = None,
@@ -175,6 +231,7 @@ def _call_llm_stream(
     """
     Stream an LLM response token-by-token.
     Yields string chunks suitable for st.write_stream().
+    Auto-resolves deprecated model IDs by walking FALLBACK_MODELS.
     """
     client = get_groq_client(api_key)
     if not client:
@@ -182,23 +239,32 @@ def _call_llm_stream(
         return
 
     history_msgs = _build_message_history(conversation_history)
-
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history_msgs)
     messages.append({"role": "user", "content": user_message})
 
-    stream = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        messages=messages,
-        stream=True,
-    )
+    candidates = [model] + [m for m in FALLBACK_MODELS if m != model]
+    for candidate in candidates:
+        try:
+            stream = client.chat.completions.create(
+                model=candidate,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                messages=messages,
+                stream=True,
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+            return   # stream completed successfully
+        except Exception as exc:
+            err = str(exc).lower()
+            if "model_not_found" in err or "does not exist" in err or "404" in err:
+                continue   # try next model in fallback chain
+            raise          # re-raise non-model errors
 
-    for chunk in stream:
-        delta = chunk.choices[0].delta.content
-        if delta:
-            yield delta
+    yield "⚠️ All fallback models exhausted. Please check your Groq API key and model availability."
 
 
 # ──────────────────────────────────────────
@@ -207,7 +273,7 @@ def _call_llm_stream(
 def ask_llm(
     question: str,
     retrieved_chunks: List[dict],
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     temperature: float = 0.1,
     api_key: Optional[str] = None,
     conversation_history: Optional[List[dict]] = None,
@@ -233,7 +299,7 @@ Question: {question}"""
 def ask_llm_stream(
     question: str,
     context: str,
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     temperature: float = 0.1,
     api_key: Optional[str] = None,
     conversation_history: Optional[List[dict]] = None,
@@ -268,7 +334,7 @@ def generate_sql(
     question: str,
     columns: List[str],
     sample_data: str = "",
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     api_key: Optional[str] = None,
 ) -> str:
     """Generate a SQL query for the given question and table schema."""
@@ -289,7 +355,7 @@ def generate_pandas_code(
     columns: List[str],
     dtypes: str = "",
     sample_data: str = "",
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     api_key: Optional[str] = None,
 ) -> str:
     """Generate pandas code to answer a data question."""
@@ -308,7 +374,7 @@ Question: {question}"""
 # ──────────────────────────────────────────
 def generate_insights(
     data_summary: str,
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     temperature: float = 0.3,
     api_key: Optional[str] = None,
 ) -> str:
@@ -365,7 +431,7 @@ def suggest_charts_with_ai(
     columns: List[str],
     dtypes: str,
     sample_data: str,
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_MODEL,
     api_key: Optional[str] = None,
 ) -> List[dict]:
     """Get AI-driven chart suggestions for the dataset."""

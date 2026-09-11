@@ -133,6 +133,32 @@ def init_db() -> None:
         )
     """)
 
+    # ── Model migration: replace ALL decommissioned model IDs ──
+    # This runs on every startup. Safe to run multiple times (idempotent).
+    # Updated Sept 2026: llama3-70b-8192 & all old Llama/Gemma/Mixtral IDs
+    # are now decommissioned. Migrate everyone to llama-3.3-70b-versatile.
+    _deprecated_models = {
+        # Old Llama 3 legacy aliases (decommissioned)
+        "llama3-70b-8192":            "llama-3.3-70b-versatile",
+        "llama3-8b-8192":             "llama-3.1-8b-instant",
+        "llama-3.1-70b-versatile":    "llama-3.3-70b-versatile",
+        "llama-3.2-90b-text-preview": "llama-3.3-70b-versatile",
+        "llama-3.2-11b-text-preview": "llama-3.1-8b-instant",
+        "llama-3.3-70b-specdec":      "llama-3.3-70b-versatile",
+        # Gemma & Mixtral (decommissioned)
+        "gemma2-9b-it":               "llama-3.1-8b-instant",
+        "gemma-7b-it":                "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768":         "llama-3.3-70b-versatile",
+        # DeepSeek distills (decommissioned)
+        "deepseek-r1-distill-llama-70b": "llama-3.3-70b-versatile",
+        "deepseek-r1-distill-llama-8b":  "llama-3.1-8b-instant",
+    }
+    for old_id, new_id in _deprecated_models.items():
+        cur.execute(
+            "UPDATE user_settings SET model = ? WHERE model = ?",
+            (new_id, old_id)
+        )
+
     conn.commit()
     conn.close()
 

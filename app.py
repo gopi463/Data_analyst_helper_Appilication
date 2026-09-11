@@ -35,7 +35,7 @@ from config import (
     APP_NAME, APP_ICON, PAGES, DEFAULT_TOP_K, DEFAULT_CHUNK_SIZE,
     DEFAULT_CHUNK_OVERLAP, DEFAULT_MODEL, DEFAULT_TEMPERATURE,
     AVAILABLE_MODELS, AVAILABLE_EMBEDDING_MODELS, DEFAULT_EMBEDDING_MODEL,
-    ASSETS_DIR
+    ASSETS_DIR, get_available_groq_models, FALLBACK_MODELS
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1165,13 +1165,33 @@ def page_settings():
 
     current = db.get_user_settings(user_id)
 
+    # ── Fetch live model list from Groq (cached per session) ──────────────────
+    _eff_key = st.session_state.get("groq_api_key", "") or os.getenv("GROQ_API_KEY", "")
+    if "_live_groq_models" not in st.session_state:
+        with st.spinner("🔄 Fetching available Groq models..."):
+            st.session_state["_live_groq_models"] = get_available_groq_models(_eff_key)
+    live_models = st.session_state["_live_groq_models"] or AVAILABLE_MODELS
+
+    # If the user's saved model has been deprecated, fall back gracefully
+    saved_model = current.get("model", DEFAULT_MODEL)
+    if saved_model not in live_models:
+        saved_model = next((m for m in FALLBACK_MODELS if m in live_models), live_models[0])
+
     with st.form("settings_form"):
         st.markdown("#### 🤖 AI Model Settings")
+
+        # Refresh button outside form is not possible; show note instead
+        st.caption(f"🟢 {len(live_models)} models available from Groq · "
+                   "Clear browser session to refresh the list")
+
         c1, c2 = st.columns(2)
         with c1:
-            model = st.selectbox("LLM Model", AVAILABLE_MODELS,
-                                 index=AVAILABLE_MODELS.index(current.get("model", DEFAULT_MODEL))
-                                 if current.get("model", DEFAULT_MODEL) in AVAILABLE_MODELS else 0)
+            model = st.selectbox(
+                "LLM Model",
+                live_models,
+                index=live_models.index(saved_model) if saved_model in live_models else 0,
+                help="List is fetched live from Groq — only active models appear here"
+            )
             temperature = st.slider("Temperature", 0.0, 1.0,
                                     float(current.get("temperature", DEFAULT_TEMPERATURE)), step=0.05,
                                     help="Higher = more creative, Lower = more precise")
@@ -1200,6 +1220,8 @@ def page_settings():
                 chunk_size=chunk_size, embedding_model=embedding_model)
             if api_key_input:
                 st.session_state["groq_api_key"] = api_key_input
+                # Invalidate cached model list so it re-fetches with the new key
+                st.session_state.pop("_live_groq_models", None)
             st.session_state["settings"] = db.get_user_settings(user_id)
             st.success("✅ Settings saved!")
 
@@ -1242,7 +1264,7 @@ def page_developer():
             border-radius:15px;padding:24px;text-align:center;box-shadow:0 8px 32px 0 rgba(0,0,0,0.37);">
             <div style="font-size:5rem;margin-bottom:12px;">👨‍💻</div>
             <h2 style="margin:0;color:#e6edf3;font-size:1.8rem;">Gopi Chand Pasam</h2>
-            <p style="color:#667eea;font-weight:600;margin:4px 0 16px 0;font-size:1.1rem;">Full Stack AI & RAG Engineer</p>
+            <p style="color:#667eea;font-weight:600;margin:4px 0 16px 0;font-size:1.1rem;"> AI & RAG Engineer and Data Analyst</p>
             <hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0;">
             <div style="text-align:left;color:#e6edf3;font-size:0.9rem;">
                 <p>🚀 <strong>Specialization:</strong> Building highly optimized Retrieval-Augmented Generation (RAG) pipelines, analytical assistants, and secure enterprise web apps.</p>

@@ -1,258 +1,241 @@
-# 🤖 AI Data Analyst Assistant v2.0
+# 📊 Data Analyst Helper Application
 
-> Enterprise-grade AI-powered data analytics platform with Hybrid RAG, Streaming, Conversation Memory, and Web Search Fallback
+> **An enterprise-grade, AI-powered analytics platform featuring Hybrid RAG (BM25 + FAISS), Real-Time Streaming, Multi-Turn Conversation Memory, Automated Exploratory Data Analysis, Dynamic Visualizations, and Intelligent Web Fallback.**
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-red)](https://streamlit.io)
-[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3-orange)](https://groq.com)
-[![FAISS](https://img.shields.io/badge/VectorDB-FAISS-green)](https://github.com/facebookresearch/faiss)
-[![BM25](https://img.shields.io/badge/Search-BM25%20%2B%20FAISS-purple)](https://github.com/dorianbrown/rank_bm25)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-
----
-
-## ✨ Features
-
-| Feature | Description |
-|---------|-------------|
-| 🔐 Authentication | Secure login/register with bcrypt password hashing |
-| 📂 File Upload | CSV, Excel (.xlsx/.xls), PDF — multi-file support |
-| 💬 AI Chat | Hybrid RAG Q&A, SQL Mode, Pandas Mode with **streaming responses** |
-| 🧠 Conversation Memory | Follow-up questions work naturally (last 4 exchanges remembered) |
-| 🔍 Hybrid Search | BM25 keyword search + FAISS semantic search fused with RRF |
-| 🎯 Reranking | Score-fusion reranker for improved answer quality |
-| 🌐 Web Search Fallback | Auto-fallback to DuckDuckGo when documents don't contain the answer |
-| 📊 Analytics | Full EDA, missing values, outlier detection, correlation |
-| 🧹 Data Cleaning | Remove duplicates, fill missing, change types, rename columns |
-| 📈 Charts | 10+ Plotly chart types with AI auto-suggestion |
-| 💡 Insights | Auto KPIs, top performers, trend analysis, AI recommendations |
-| 📋 Reports | Professional PDF reports with executive summaries |
-| 👍 Feedback | Thumbs-up/thumbs-down buttons on every AI response |
-| 🕐 Chat History | Per-user conversation storage with search and delete |
-| ⚙️ Settings | Model, temperature, top-k, chunk size, embedding model |
-| 🧪 Tests | Unit tests for core modules (pytest) |
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3%2070B-F55036?style=for-the-badge&logo=groq&logoColor=white)](https://groq.com)
+[![FAISS](https://img.shields.io/badge/VectorDB-FAISS-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](https://github.com/facebookresearch/faiss)
+[![BM25](https://img.shields.io/badge/Lexical-BM25Okapi-8A2BE2?style=for-the-badge)](https://github.com/dorianbrown/rank_bm25)
+[![Plotly](https://img.shields.io/badge/Charts-Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 ---
 
-## 🏗️ Architecture
+## 🌟 Overview
+
+The **Data Analyst Helper Application** transforms raw spreadsheets, documents, and business data into actionable business intelligence. Built on a state-of-the-art **Hybrid Retrieval-Augmented Generation (RAG)** pipeline, it pairs dense semantic vector search with lexical keyword retrieval to achieve high answer precision across structured and unstructured files (CSV, Excel, PDF).
+
+Whether you need automated exploratory data analysis, interactive data cleaning, real-time streaming Q&A, SQL/Pandas code generation, 10+ interactive Plotly charts, or publication-grade executive PDF reports, this application provides an end-to-end data analytics workflow within a sleek, glassmorphic dark-themed interface.
+
+---
+
+## 🚀 Key Features
+
+| Category | Highlights |
+|---|---|
+| 🔐 **Authentication & Security** | Per-user isolation, secure registration/login using `bcrypt` password hashing, private session state, and user-specific document storage. |
+| 📂 **Multi-Format Ingestion** | Drag-and-drop support for **CSV**, **Excel (.xlsx, .xls)**, and **PDF** documents with multi-file merging and sentence-boundary text chunking. |
+| 🧠 **Hybrid RAG Pipeline** | Dense semantic vectors (**FAISS** with `sentence-transformers`) + Sparse keyword matching (**BM25Okapi**), fused via **Reciprocal Rank Fusion (RRF)** and confidence score reranking. |
+| 💬 **Streaming Conversational AI** | Ultra-low latency streaming responses powered by **Groq** (`llama-3.3-70b-versatile`), equipped with 4-exchange conversational memory and query rewriting. |
+| 🌐 **Intelligent Web Fallback** | Automatic fallback to **DuckDuckGo Web Search** when uploaded documents do not contain the answer or confidence falls below threshold. |
+| 💻 **SQL & Pandas Execution** | Ask natural language questions that automatically compile into executable SQL queries (SQLite in-memory) or Pandas operations with live execution and verification. |
+| 📊 **Deep Exploratory Data Analysis** | Instant summary statistics, null value matrices, skewness/kurtosis assessment, IQR outlier detection, and correlation heatmaps. |
+| 🧹 **Interactive Data Cleaning** | Deduplicate rows, impute missing values (mean, median, mode, constant), cast data types, drop sparse columns, and rename features. |
+| 📈 **Dynamic Visualizations** | 10+ Plotly chart types (Bar, Line, Scatter, Histogram, Box, Heatmap, Pie, Treemap, Violin, Area) with an automated AI chart recommender. |
+| 💡 **Automated Business Insights** | Instant KPI metric extraction, top-performer rankings, trend discovery, anomalies, and AI-generated strategic recommendations. |
+| 📋 **Executive PDF Reports** | One-click publication-grade PDF report generator powered by ReportLab, complete with executive summaries, KPI tables, and data exports to CSV/Excel. |
+| 👨‍💻 **Developer & Recruiter Hub** | Integrated developer profile highlighting technical specializations and a direct recruiter contact inquiry form. |
+
+---
+
+## 🏗️ System Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         Streamlit UI (app.py)                        │
-│  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌───────────────────┐  │
-│  │  Upload  │  │   Chat   │  │ Analytics  │  │ Insights/Reports  │  │
-│  └────┬─────┘  └────┬─────┘  └────────────┘  └───────────────────┘  │
-└───────│─────────────│────────────────────────────────────────────────┘
-        │             │
-        ▼             ▼
-┌───────────────┐   ┌─────────────────────────────────────────────────┐
-│  Document     │   │              Hybrid RAG Pipeline                 │
-│  Ingestion    │   │                                                   │
-│               │   │  ┌─────────────┐    ┌──────────────────────┐    │
-│  loader.py    │   │  │  BM25 Index  │    │   FAISS Vector Store  │   │
-│  chunker.py   │───┼─▶│ (rank-bm25) │    │ (SentenceTransformer) │   │
-│  embedder.py  │   │  └──────┬──────┘    └──────────┬───────────┘    │
-└───────────────┘   │         │                       │                │
-                    │         └──────────┬────────────┘                │
-                    │                    ▼                              │
-                    │         ┌──────────────────┐                     │
-                    │         │  RRF Fusion +    │                     │
-                    │         │  Score Reranker  │                     │
-                    │         └────────┬─────────┘                     │
-                    │                  │  low confidence?              │
-                    │                  ├──────────────▶ Web Search     │
-                    │                  │               (DuckDuckGo)    │
-                    │                  ▼                               │
-                    │    ┌─────────────────────────────┐              │
-                    │    │  Groq LLM (Llama-3.3-70B)   │              │
-                    │    │  + Conversation Memory       │ ◀─ Streaming │
-                    │    └─────────────────────────────┘              │
-                    └─────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                       Streamlit Glassmorphic UI (app.py)                   │
+│   ┌──────────────┐   ┌──────────────┐   ┌────────────┐   ┌──────────────┐  │
+│   │ 🏠 Dashboard │   │  📂 Upload   │   │  💬 Chat   │   │  📊 Analytics│  │
+│   ├──────────────┤   ├──────────────┤   ├────────────┤   ├──────────────┤  │
+│   │  💡 Insights │   │  📋 Reports  │   │  ⚙️ Settings│  │  👨‍💻 Developer│  │
+│   └──────────────┘   └──────────────┘   └────────────┘   └──────────────┘  │
+└───────────────────────┬──────────────────────┬─────────────────────────────┘
+                        │                      │
+                        ▼                      ▼
+┌────────────────────────────────┐   ┌───────────────────────────────────────┐
+│     Document Ingestion         │   │         Hybrid RAG Pipeline           │
+│                                │   │                                       │
+│  • loader.py (CSV, XLSX, PDF)  │   │  ┌──────────────┐   ┌──────────────┐  │
+│  • chunker.py (Sentence Split) │   │  │  FAISS Index │   │  BM25 Index  │  │
+│  • embedder.py (all-MiniLM-L6) │───┼─▶│ (Dense/Sem.) │   │(Lexical/Keyw)│  │
+└────────────────────────────────┘   │  └──────┬───────┘   └──────┬───────┘  │
+                                     │         │                  │          │
+                                     │         └────────┬─────────┘          │
+                                     │                  ▼                    │
+                                     │      ┌────────────────────────┐       │
+                                     │      │ Reciprocal Rank Fusion │       │
+                                     │      │   + Score Reranker     │       │
+                                     │      └───────────┬────────────┘       │
+                                     │                  │                    │
+                                     │        Low Score?│ Yes                │
+                                     │                  ├──────▶ Web Search  │
+                                     │                  │        (DuckDuckGo)│
+                                     │                  ▼                    │
+                                     │      ┌────────────────────────┐       │
+                                     │      │ Groq Cloud Engine      │       │
+                                     │      │ llama-3.3-70b-versatile│       │
+                                     │      │ + Multi-Turn Memory    │       │
+                                     │      └───────────┬────────────┘       │
+                                     │                  │ Streaming          │
+                                     │                  ▼                    │
+                                     │        User Interface Display         │
+                                     └───────────────────────────────────────┘
 
-┌───────────────────────────────────────────────────────────────────┐
-│                     Persistence Layer                              │
-│   SQLite (users, chat_history, feedback, files, settings)          │
-│   FAISS Index + BM25 metadata (per-user, on disk)                 │
-└───────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                           Persistence Layer                                │
+│   • SQLite Database (database.py) — Users, Sessions, History, Feedback     │
+│   • Vector Storage (vector_store.py) — Per-user FAISS index & BM25 corpus  │
+│   • Generated Artifacts — Reports (.pdf), Exported Data (.csv, .xlsx)      │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🛠️ Tech Stack & Dependencies
 
-### 1. Clone the repository
+- **Frontend & App Framework:** [Streamlit](https://streamlit.io)
+- **Large Language Models:** [Groq Cloud API](https://groq.com)
+  - `llama-3.3-70b-versatile` (Default High-Reasoning Model)
+  - `llama-3.1-8b-instant` (Fast Sub-Second Fallback)
+  - `openai/gpt-oss-120b` / `openai/gpt-oss-20b`
+- **Embedding Model:** [SentenceTransformers](https://sbert.net) (`sentence-transformers/all-MiniLM-L6-v2`)
+- **Vector Search Engine:** [FAISS CPU](https://github.com/facebookresearch/faiss)
+- **Keyword Search Engine:** [Rank-BM25](https://github.com/dorianbrown/rank_bm25)
+- **Web Search Integration:** [DuckDuckGo Search](https://pypi.org/project/duckduckgo-search/)
+- **Data Analysis & Modeling:** Pandas, NumPy, SciPy, Scikit-learn
+- **Data Visualization:** Plotly Graph Objects & Plotly Express
+- **PDF Generation Engine:** ReportLab
+- **Authentication & Hashing:** bcrypt
+- **Database:** SQLite3
+
+---
+
+## 🚀 Quick Start & Installation
+
+### 1. Clone the Repository
 ```bash
-git clone <your-repo-url>
-cd RAG_SYSTEM
+git clone https://github.com/gopi463/Data_analyst_helper_Appilication.git
+cd Data_analyst_helper_Appilication
 ```
 
-### 2. Create a virtual environment
+### 2. Create and Activate a Virtual Environment
 ```bash
+# Windows (PowerShell)
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Mac/Linux:
+.\.venv\Scripts\Activate.ps1
+
+# Linux / macOS
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
+### 3. Install Dependencies
 ```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment
+### 4. Set Up Environment Variables
+Create a `.env` file in the root directory (or duplicate `.env.example`):
 ```bash
 cp .env.example .env
-# Edit .env and add your GROQ_API_KEY
 ```
+Add your **Groq API Key**:
+```ini
+GROQ_API_KEY=gsk_your_groq_api_key_here
+```
+> *(You can also leave `.env` empty and provide your Groq API Key directly in the app's Settings page or sidebar at runtime!)*
 
-### 5. Run the application
+### 5. Launch the Application
 ```bash
 streamlit run app.py
 ```
-
-### 6. Run Tests
-```bash
-python -m pytest tests/ -v --tb=short
-```
+Open your browser and navigate to: **`http://localhost:8501`**
 
 ---
 
-## 🌐 Deploy to Streamlit Cloud
+## 🧪 Running the Test Suite
 
-1. Push this project to a GitHub repository
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Create a new app pointing to `app.py`
-4. In **App Settings → Secrets**, add:
-   ```toml
-   GROQ_API_KEY = "your_groq_api_key_here"
-   ```
-5. Deploy!
-
----
-
-## 🔧 Configuration
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `model` | `llama-3.3-70b-versatile` | Groq LLM model |
-| `temperature` | `0.1` | LLM creativity (0=precise, 1=creative) |
-| `top_k` | `5` | Number of chunks to retrieve per query |
-| `chunk_size` | `600` | Text chunk size (characters) |
-| `embedding_model` | `all-MiniLM-L6-v2` | SentenceTransformer model name |
-
----
-
-## 📁 Project Structure
-
-```
-RAG_SYSTEM/
-├── app.py                  # Main Streamlit entry point (routing + 8 pages)
-├── config.py               # Global configuration & constants
-├── database.py             # SQLite ORM (users, history, feedback, files, reports)
-├── auth.py                 # Authentication (login, register, bcrypt)
-├── loader.py               # File loader (CSV, Excel, PDF)
-├── chunker.py              # Smart text chunker with sentence-boundary awareness
-├── embedder.py             # SentenceTransformer embedding engine (cached)
-├── vector_store.py         # FAISS vector database (per-user isolation)
-├── retriever.py            # ★ Hybrid BM25+FAISS retriever + RRF + reranking
-├── web_search.py           # ★ DuckDuckGo web search fallback
-├── llm.py                  # ★ Groq LLM client (streaming + conversation memory)
-├── analytics.py            # EDA, cleaning, outlier detection
-├── charts.py               # Plotly chart builder (10+ types)
-├── insights.py             # Business KPIs and insight cards
-├── report_generator.py     # PDF report generation with ReportLab
-├── history.py              # Chat history manager
-├── utils.py                # Helpers, SQL/Pandas execution, UI components
-├── requirements.txt        # Python dependencies
-├── .env.example            # Environment variable template
-├── tests/
-│   ├── test_chunker.py     # ★ Unit tests for chunker
-│   ├── test_retriever.py   # ★ Unit tests for hybrid retriever
-│   ├── test_llm.py         # ★ Unit tests for LLM helpers
-│   ├── test_analytics.py   # ★ Unit tests for analytics
-│   └── test_database.py    # ★ Unit tests for database
-├── assets/
-│   └── style.css           # Dark glassmorphism CSS theme
-├── uploads/                # Uploaded files storage
-├── data/                   # FAISS indexes (per user)
-├── reports/                # Generated PDF reports (per user)
-└── database/               # SQLite database files
-```
-> ★ = New or significantly upgraded in v2.0
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Streamlit |
-| AI / LLM | Groq API (`llama-3.3-70b-versatile`) |
-| Embeddings | `sentence-transformers` (all-MiniLM-L6-v2) |
-| Semantic Search | FAISS (Facebook AI Similarity Search) |
-| Keyword Search | BM25 (`rank-bm25`) |
-| Search Fusion | Reciprocal Rank Fusion (RRF) |
-| Web Fallback | DuckDuckGo Search (`duckduckgo-search`) |
-| Data Processing | Pandas, NumPy |
-| Visualization | Plotly |
-| Database | SQLite |
-| Authentication | bcrypt |
-| PDF Generation | ReportLab |
-| File Parsing | pypdf, openpyxl |
-| Testing | pytest |
-
----
-
-## 📸 Pages Overview
-
-- **🏠 Home** — Dashboard with KPI cards, file history, quick actions
-- **📂 Upload Data** — Multi-file drag & drop with 5-step progress bar and BM25+FAISS indexing
-- **💬 Chat with AI** — Streaming RAG Q&A with conversation memory, web fallback, and 👍/👎 feedback
-- **📊 Analytics Dashboard** — Full EDA + data cleaning + custom chart builder
-- **💡 Business Insights** — KPIs, top performers, trend charts, AI recommendations
-- **📋 Reports** — PDF generation with executive summary, export CSV/Excel
-- **🕐 Chat History** — Search, browse, continue, delete conversation history
-- **⚙️ Settings** — Model, temperature, chunk size, embedding model, API key
-
----
-
-## 🔑 Getting a Groq API Key
-
-1. Go to [console.groq.com](https://console.groq.com)
-2. Sign up for a free account
-3. Navigate to **API Keys**
-4. Create a new key
-5. Copy and paste it into your `.env` file or Streamlit Cloud secrets
-
----
-
-## 🧪 Running Tests
+The project includes unit tests covering the chunker, hybrid retriever, Groq LLM integration, data analytics, and database layers:
 
 ```bash
-# Run all tests
+# Run all unit tests
 python -m pytest tests/ -v
 
-# Run specific test file
-python -m pytest tests/test_chunker.py -v
+# Run with summary of test outputs
+python -m pytest tests/ -v --tb=short
 
-# Run with coverage report
-python -m pytest tests/ --cov=. --cov-report=term-missing
+# Run specific module tests
+python -m pytest tests/test_retriever.py -v
+python -m pytest tests/test_chunker.py -v
 ```
 
 ---
 
-## 🤝 Contributing
+## 📁 Repository Structure
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Run tests: `python -m pytest tests/`
-4. Commit: `git commit -m "Add my feature"`
-5. Push: `git push origin feature/my-feature`
-6. Open a Pull Request
+```
+Data_analyst_helper_Appilication/
+├── app.py                  # Main application router and page renderer
+├── config.py               # Application settings, live Groq models & constants
+├── database.py             # SQLite persistence, schema migrations, and user data
+├── auth.py                 # User authentication, registration, and bcrypt hashing
+├── loader.py               # Ingestion parser for CSV, Excel (.xlsx/.xls), and PDF
+├── chunker.py              # Sentence-aware text chunking with overlap
+├── embedder.py             # SentenceTransformer embeddings engine with caching
+├── vector_store.py         # FAISS vector store creation, index disk persistence
+├── retriever.py            # Hybrid BM25 + FAISS search, RRF fusion & reranker
+├── web_search.py           # DuckDuckGo web search fallback provider
+├── llm.py                  # Groq API streaming client with conversation memory
+├── analytics.py            # Automated EDA, summary statistics, outlier detection
+├── charts.py               # 10+ interactive Plotly chart templates & AI recommender
+├── insights.py             # KPI calculation, trend detection, AI recommendations
+├── report_generator.py     # Publication-grade PDF report compiler (ReportLab)
+├── history.py              # Chat history search, conversation management
+├── utils.py                # SQL sandbox, Pandas runner, UI helpers & formatters
+├── requirements.txt        # Pinned production dependencies
+├── .env.example            # Environment configuration template
+├── .gitignore              # Git exclusions for environments, databases, caches
+├── assets/
+│   └── style.css           # Glassmorphism dark mode stylesheet
+├── tests/
+│   ├── test_chunker.py     # Chunker unit tests
+│   ├── test_retriever.py   # Hybrid search & RRF unit tests
+│   ├── test_llm.py         # LLM prompt builder and client tests
+│   ├── test_analytics.py   # EDA and data cleaning tests
+│   └── test_database.py    # Database schema & migrations tests
+├── data/                   # User-isolated FAISS vector index files (.gitignore)
+├── database/               # Local SQLite database instances (.gitignore)
+├── reports/                # Generated user PDF reports (.gitignore)
+└── uploads/                # User uploaded datasets (.gitignore)
+```
+
+---
+
+## 🌐 Deploying to Streamlit Community Cloud
+
+1. Fork or push this repository to your GitHub account (`gopi463/Data_analyst_helper_Appilication`).
+2. Log in to [share.streamlit.io](https://share.streamlit.io).
+3. Click **New app**, select your repository, branch (`main`), and main file path (`app.py`).
+4. Click **Advanced settings...** and add your secrets:
+   ```toml
+   GROQ_API_KEY = "gsk_your_actual_groq_api_key"
+   ```
+5. Click **Deploy!**
+
+---
+
+## 👨‍💻 Author & Developer
+
+**Gopi Chand Pasam**  
+*AI & RAG Engineer and Data Analyst*
+
+- 🐙 **GitHub:** [@gopi463](https://github.com/gopi463)
+- 💼 **LinkedIn:** [Gopi Chand Pasam](https://linkedin.com)
+- 📬 **Email:** [gopipasam93@gmail.com](mailto:gopipasam93@gmail.com)
 
 ---
 
 ## 📄 License
 
-MIT License — feel free to use this in your own projects!
+This project is open source and available under the [MIT License](LICENSE).
