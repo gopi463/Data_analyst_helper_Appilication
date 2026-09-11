@@ -164,11 +164,32 @@ def _df_to_documents(df: pd.DataFrame, filename: str, file_type: str, chunk_rows
     Each chunk contains up to `chunk_rows` rows as a readable text block.
     """
     documents = []
-    # Include column summary as first document
-    col_info = f"Dataset: {filename}\nColumns: {', '.join(df.columns.tolist())}\nShape: {df.shape[0]} rows × {df.shape[1]} columns\n"
-    col_info += f"Data Types:\n{df.dtypes.to_string()}\n"
-    col_info += f"\nSummary Statistics:\n{df.describe(include='all').to_string()}"
-    documents.append({"text": col_info, "file": filename, "page": 0, "type": file_type})
+    # 1. Include comprehensive schema and categorical catalog as the first document
+    catalog_lines = [
+        f"Dataset Catalog, Schema, Categories & Metadata for {filename}:",
+        f"Total Rows: {len(df):,}, Total Columns: {len(df.columns)}",
+        f"All Columns: {', '.join(df.columns.tolist())}",
+        "\nCategorical Columns, Categories & Distinct Values (Ground Truth):",
+    ]
+    for col in df.columns:
+        try:
+            n_unique = df[col].nunique(dropna=True)
+            if n_unique <= 50:
+                unique_vals = [str(v) for v in df[col].dropna().unique().tolist()]
+                try:
+                    unique_vals.sort()
+                except Exception:
+                    pass
+                catalog_lines.append(f"• Column '{col}' has {n_unique} unique categories/values: {', '.join(unique_vals)}")
+            elif pd.api.types.is_numeric_dtype(df[col]):
+                non_null = df[col].dropna()
+                if not non_null.empty:
+                    catalog_lines.append(f"• Column '{col}' (numeric): min={non_null.min()}, max={non_null.max()}, mean={non_null.mean():.2f}")
+        except Exception:
+            continue
+
+    catalog_text = "\n".join(catalog_lines)
+    documents.append({"text": catalog_text, "file": filename, "page": 0, "type": file_type})
 
     # Chunk data rows into text blocks
     for i in range(0, len(df), chunk_rows):

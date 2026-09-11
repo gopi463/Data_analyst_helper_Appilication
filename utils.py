@@ -234,3 +234,57 @@ def no_data_placeholder(message: str = "No data uploaded yet.") -> None:
         </p>
     </div>
     """, unsafe_allow_html=True)
+
+
+def build_dataset_ground_truth(df: pd.DataFrame, max_distinct: int = 50) -> str:
+    """
+    Generate an authoritative, complete summary of the active dataset:
+    - Total row and column counts
+    - All column names and data types
+    - Exact distinct values for all categorical and discrete columns (<= max_distinct unique values)
+    - Min, max, mean for numeric columns
+    - Sample values for high-cardinality columns
+    This provides ground truth to prevent RAG retrieval blindspots on global questions across ANY dataset.
+    """
+    if df is None or df.empty:
+        return ""
+
+    lines = [
+        "=== AUTHORITATIVE DATASET GROUND TRUTH & CATEGORICAL CATALOG ===",
+        f"Dataset Dimensions: {len(df):,} rows × {len(df.columns)} columns",
+        f"Columns: {', '.join(df.columns.tolist())}",
+        "\nDetailed Column Breakdown & Distinct Values:",
+    ]
+
+    for col in df.columns:
+        try:
+            n_unique = df[col].nunique(dropna=True)
+            null_count = int(df[col].isna().sum())
+            null_info = f", {null_count} nulls" if null_count > 0 else ""
+
+            if n_unique <= max_distinct:
+                unique_vals = [str(v) for v in df[col].dropna().unique().tolist()]
+                try:
+                    unique_vals.sort()
+                except Exception:
+                    pass
+                val_str = ", ".join(unique_vals)
+                lines.append(f"• {col} [{n_unique} unique values{null_info}]: {val_str}")
+            elif pd.api.types.is_numeric_dtype(df[col]):
+                non_null = df[col].dropna()
+                if not non_null.empty:
+                    lines.append(
+                        f"• {col} [numeric, {n_unique:,} unique{null_info}]: "
+                        f"min={non_null.min()}, max={non_null.max()}, mean={non_null.mean():.2f}"
+                    )
+                else:
+                    lines.append(f"• {col} [numeric, all null]")
+            else:
+                samples = [str(v) for v in df[col].dropna().unique()[:6]]
+                lines.append(f"• {col} [{n_unique:,} unique text/ID values{null_info}]: sample values: {', '.join(samples)}...")
+        except Exception:
+            continue
+
+    lines.append("=== END OF AUTHORITATIVE DATASET GROUND TRUTH ===\n")
+    return "\n".join(lines)
+

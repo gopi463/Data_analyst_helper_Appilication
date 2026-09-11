@@ -503,15 +503,26 @@ def page_chat():
                     prompt, vs, k=top_k, bm25_retriever=bm25
                 )
 
+                ground_truth = utils.build_dataset_ground_truth(df) if df is not None else ""
+
                 use_web = False
                 if not context or not is_confident:
-                    # Fall back to web search
-                    web_results = web_search(prompt, max_results=5)
-                    if web_results:
-                        use_web = True
-                        context = format_web_results_as_context(web_results)
-                        sources = []  # web sources shown separately
-                        st.info("📄 No relevant content found in your documents. Using web search instead…")
+                    # If tabular data is active, use ground truth before attempting web search
+                    if ground_truth:
+                        context = ground_truth
+                        is_confident = True
+                    else:
+                        # Fall back to web search
+                        web_results = web_search(prompt, max_results=5)
+                        if web_results:
+                            use_web = True
+                            context = format_web_results_as_context(web_results)
+                            sources = []  # web sources shown separately
+                            st.info("📄 No relevant content found in your documents. Using web search instead…")
+
+                # Augment RAG context with complete dataset ground truth (all categories, columns, ranges)
+                if ground_truth and not use_web:
+                    context = f"{ground_truth}\n\n=== RELEVANT RETRIEVED ROW SNIPPETS ===\n{context}"
 
                 if not context:
                     answer = "I couldn't find relevant information in the uploaded documents or via web search. Please try rephrasing your question."

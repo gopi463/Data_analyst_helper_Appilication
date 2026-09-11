@@ -92,6 +92,7 @@ Rules:
 5. Never hallucinate facts not in the context.
 6. Use the conversation history to resolve pronouns and follow-up references (e.g. "it", "that", "the second one").
 7. Be concise, professional, and insightful.
+8. If AUTHORITATIVE DATASET GROUND TRUTH is provided in the context, treat it as the 100% complete, exhaustive ground truth for all dataset dimensions, column names, and distinct categorical values.
 """
 
 WEB_RAG_SYSTEM_PROMPT = """You are an expert AI Data Analyst Assistant.
