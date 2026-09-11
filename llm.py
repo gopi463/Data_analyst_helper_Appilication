@@ -109,24 +109,27 @@ Rules:
 
 SQL_SYSTEM_PROMPT = """You are an expert SQL analyst. The user has a dataset loaded into a SQLite database table called `data_table`.
 
-Rules:
-1. Generate valid SQLite SQL queries ONLY.
-2. Wrap the SQL code in ```sql ... ``` code blocks.
-3. After the SQL, briefly explain what it does.
-4. Avoid destructive operations (DROP, DELETE, UPDATE, INSERT).
-5. If the request is unclear, ask for clarification.
+CRITICAL ZERO-HALLUCINATION COLUMN POLICY:
+1. You MUST examine the provided 'EXACT AVAILABLE COLUMNS' list. You are STRICTLY FORBIDDEN from using any column name that is not in that list.
+2. NEVER guess, assume, or hallucinate column names (such as "Product Name", "Profit", "Sales", "Revenue", "Price", "ID") unless they exist literally in the provided list.
+3. Always wrap all column names in double quotes in SQL (e.g. "Exact_Column_Name"), preserving their exact case and spelling.
+4. If the user asks about a concept (e.g. "product", "profit", "customer") and the column in the dataset is named differently (e.g. "item_name", "margin", "client_id"), MAP the user's concept to the real column in the dataset.
+5. If the requested information or metric cannot be answered from the available columns (e.g. user asks for profit but table has no financial columns), DO NOT fabricate a column! Explain clearly that the requested column does not exist in the dataset and show the available columns.
+6. Generate valid SQLite SQL queries ONLY. Wrap the SQL code in ```sql ... ``` code blocks.
+7. After the SQL, briefly explain what it does and which real columns were used.
+8. Avoid destructive operations (DROP, DELETE, UPDATE, INSERT, ALTER).
 """
 
-PANDAS_SYSTEM_PROMPT = """You are an expert Python/pandas data analyst.
+PANDAS_SYSTEM_PROMPT = """You are an expert Python/pandas data analyst. The user has a pandas DataFrame available as `df`.
 
-The user has a pandas DataFrame available as `df`. Generate safe pandas code to answer the question.
-
-Rules:
-1. Wrap ALL code in ```python ... ``` code blocks.
-2. Assign the final result to a variable called `result`.
-3. Do NOT use file I/O, network calls, or os operations.
-4. Be concise and correct.
-5. After the code, briefly explain what it does.
+CRITICAL ZERO-HALLUCINATION COLUMN POLICY:
+1. You MUST examine the provided 'EXACT AVAILABLE COLUMNS' list. You are STRICTLY FORBIDDEN from using any column name that is not in that list.
+2. NEVER guess, assume, or hallucinate column names like "Product Name", "Profit", "Sales" unless they exist in the provided list.
+3. Wrap ALL code in ```python ... ``` code blocks.
+4. Assign the final result to a variable called `result`.
+5. Do NOT use file I/O, network calls, or os operations.
+6. If a requested metric cannot be answered from the available columns, do not invent columns; state clearly what columns are missing.
+7. Be concise, safe, and correct. After the code, briefly explain what it does.
 """
 
 INSIGHTS_SYSTEM_PROMPT = """You are an expert business analyst. Analyze the provided data summary and generate actionable business insights.
@@ -339,12 +342,22 @@ def generate_sql(
     api_key: Optional[str] = None,
 ) -> str:
     """Generate a SQL query for the given question and table schema."""
-    user_message = f"""Table name: data_table
-Columns: {', '.join(columns)}
-Sample data:
+    col_list_str = "\n".join(f"  • \"{c}\"" for c in columns)
+    user_message = f"""Table name: `data_table`
+
+EXACT AVAILABLE COLUMNS (CHOOSE ONLY FROM THIS LIST):
+{col_list_str}
+
+SCHEMA & SAMPLE DATA:
 {sample_data}
 
-Question: {question}"""
+USER REQUEST:
+{question}
+
+STRICT REQUIREMENT:
+- Check each column you use in SELECT, WHERE, GROUP BY, ORDER BY against the EXACT AVAILABLE COLUMNS list above.
+- NEVER invent, assume, or hallucinate column names.
+- Always enclose column names in double quotes: "Column_Name"."""
     return _call_llm(SQL_SYSTEM_PROMPT, user_message, model, api_key=api_key)
 
 
@@ -360,13 +373,24 @@ def generate_pandas_code(
     api_key: Optional[str] = None,
 ) -> str:
     """Generate pandas code to answer a data question."""
-    user_message = f"""DataFrame columns: {', '.join(columns)}
-Data types:
+    col_list_str = "\n".join(f"  • df['{c}']" for c in columns)
+    user_message = f"""DataFrame variable: `df`
+
+EXACT AVAILABLE COLUMNS (CHOOSE ONLY FROM THIS LIST):
+{col_list_str}
+
+DATA TYPES:
 {dtypes}
-Sample data (first 5 rows):
+
+SAMPLE DATA (FIRST 5 ROWS):
 {sample_data}
 
-Question: {question}"""
+USER REQUEST:
+{question}
+
+STRICT REQUIREMENT:
+- Use ONLY columns from the list above. Never use imaginary or assumed columns.
+- Store output in `result`."""
     return _call_llm(PANDAS_SYSTEM_PROMPT, user_message, model, api_key=api_key)
 
 

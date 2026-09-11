@@ -555,16 +555,14 @@ def page_chat():
                 st.markdown(answer)
             else:
                 with st.spinner("Generating SQL…"):
-                    cols = df.columns.tolist()
-                    if not st.session_state.get("current_sql_db"):
-                        sql_db_path = utils.load_df_to_sqlite(df, user_id)
-                        st.session_state["current_sql_db"] = sql_db_path
+                    # Always sync SQLite table with active DataFrame to guarantee exact columns
+                    sql_db_path = utils.load_df_to_sqlite(df, user_id)
+                    st.session_state["current_sql_db"] = sql_db_path
 
-                    dtype_lines = "\n".join(f"  - {c} ({str(df[c].dtype)})" for c in cols)
+                    dtype_lines = "\n".join(f"  - \"{c}\" (type: {str(df[c].dtype)})" for c in cols)
                     sample      = df.head(5).to_string(index=False)
                     schema_hint = (
-                        f"Table: data_table\n"
-                        f"Exact column names (use these EXACTLY, do not rename):\n{dtype_lines}\n\n"
+                        f"Exact column names (use these EXACTLY inside double quotes):\n{dtype_lines}\n\n"
                         f"Sample rows:\n{sample}"
                     )
 
