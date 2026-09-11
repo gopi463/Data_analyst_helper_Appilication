@@ -52,8 +52,6 @@ def embed_chunks(
         convert_to_numpy=True,
         show_progress_bar=show_progress,
         normalize_embeddings=True,
-        # Use all available CPU threads for tokenization
-        num_workers=0,  # 0 = use main thread (safe for Streamlit)
     )
     return embeddings.astype("float32")
 
