@@ -555,6 +555,7 @@ def page_chat():
                 st.markdown(answer)
             else:
                 with st.spinner("Generating SQL…"):
+                    cols = df.columns.tolist()
                     # Always sync SQLite table with active DataFrame to guarantee exact columns
                     sql_db_path = utils.load_df_to_sqlite(df, user_id)
                     st.session_state["current_sql_db"] = sql_db_path
